@@ -180,3 +180,46 @@ if compare_key and compare_key in all_data:
                          color="Source", title="Production Comparison",
                          color_discrete_sequence=['red', 'blue'])
     st.plotly_chart(fig_compare, use_container_width=True)
+ with tab4:
+     st.subheader(f"Combined Analysis for {plant_name} – {line}")
+     # Allow a secondary y-axis
+     fig_combined = make_subplots(
+         specs=[[{"secondary_y": True}]],
+         subplot_titles=[f"{plant_name} - {line} Comprehensive View"]
+     )
+
+     # Primary y-axis trace
+     fig_combined.add_trace(
+         go.Bar(
+             x=df["Month"],
+             y=df["Production"],
+             name="Monthly Production",
+             marker_color='crimson'
+         ),
+         secondary_y=False,
+     )
+
+     # Secondary y-axis trace
+     fig_combined.add_trace(
+         go.Scatter(
+             x=df["Month"],
+             y=df["Production"].cumsum(),
+             name="Cumulative Production",
+             mode='lines+markers',
+             line=dict(color='orange')
+         ),
+         secondary_y=True,
+     )
+
+     # Update axis titles
+     fig_combined.update_xaxes(title_text="Month")
+     fig_combined.update_yaxes(title_text="Monthly Production", secondary_y=False)
+     fig_combined.update_yaxes(title_text="Cumulative Production", secondary_y=True)
+
+     fig_combined.update_layout(
+         title_text=f"{plant_name} - {line} Comprehensive View",
+         height=500,
+         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+     )
+
+     st.plotly_chart(fig_combined, use_container_width=True)
