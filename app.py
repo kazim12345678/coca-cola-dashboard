@@ -21,7 +21,7 @@ current_year = datetime.now().year
 for y in range(2023, current_year+1):
     all_data.setdefault(str(y), {})
 
-plants = ['A','B','C','D','E','F']
+plants = ['Lahore','B','C','D','E','F']
 lines  = [1,2,3,4,5]
 months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
