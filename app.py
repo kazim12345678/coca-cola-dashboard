@@ -1,80 +1,90 @@
 import streamlit as st
 import pandas as pd
-import os
-import json
+import json, os
 from datetime import datetime
 
-# ─── Config ────────────────────────────────────────
-st.set_page_config(page_title="Core Dashboard", layout="wide")
+# ---------- CONFIG ----------
+st.set_page_config(page_title="Coca-Cola Dashboard", layout="wide")
+DATA_FILE = 'production_data.json'
 
-DATA_FILE = "daily_production.json"
-plants    = ['A','B','C','D','E']
-lines     = [1,2,3,4,5]
-
-# ─── Load or initialize data ──────────────────────
+# ---------- DATA LOADING ----------
 if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, 'r') as f:
+    with open(DATA_FILE,'r') as f:
         all_data = json.load(f)
 else:
-    all_data = {}  # keys: "Plant_Line", values: {"YYYY-MM-DD": production}
+    all_data = {}  # structure: all_data[year][plant][line][month]
 
-# ─── UI Selectors ──────────────────────────────────
-st.title("📊 Core Production Dashboard")
+# utility to ensure nested dicts
+from collections import defaultdict
 
-# Date picker
-selected_date = st.date_input(
-    "Select Date",
-    min_value=datetime(2023,1,1),
-    max_value=datetime(2030,12,31),
-    value=datetime.today()
-)
+def get_data():
+    # ensure structure for current years
+    return defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {m:0 for m in months})))
 
-# Plant & line selectors
-plant = st.selectbox("Select Plant", plants)
-line  = st.selectbox("Select Line",  lines)
-key   = f"{plant}_{line}"
+# ---------- CONSTANTS ----------
+plants = ['A','B','C','D','E','F']
+lines  = [1,2,3,4,5]
+months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+current_year = datetime.now().year
 
-# Current value for this date
-date_str = selected_date.strftime("%Y-%m-%d")
-current_val = all_data.get(key, {}).get(date_str, 0)
+# fill missing structure
+if not all_data:
+    for y in range(2023, current_year+1):
+        all_data[str(y)] = {}
+        for p in plants:
+            all_data[str(y)][p] = {}
+            for l in lines:
+                all_data[str(y)][p][str(l)] = {m:0 for m in months}
 
-# Daily production input
-new_val = st.number_input(
-    f"Production on {date_str}", min_value=0, value=current_val, step=1
-)
+# ---------- UI ----------
+st.title("🥤 Coca-Cola Production Dashboard")
 
-# Save button
-if st.button("💾 Save Production"):
-    all_data.setdefault(key, {})[date_str] = new_val
-    with open(DATA_FILE, 'w') as f:
+# Year filter
+year = st.selectbox("Select Year", [str(y) for y in range(2023, current_year+1)])
+# Month filter (multi)
+selected_months = st.multiselect("Select Month(s)", months, default=months)
+
+# ---------- Monthly Edit Section ----------
+st.header("✏️ Edit Monthly Production")
+col1, col2, col3 = st.columns(3)
+with col1:
+    plant = st.selectbox("Plant", plants)
+with col2:
+    line = st.selectbox("Line", lines)
+with col3:
+    month = st.selectbox("Month", months)
+
+# current value
+current_val = all_data[year][plant][str(line)][month]
+new_val = st.number_input(f"Production for {plant} Line {line} {month} {year}", value=current_val, min_value=0)
+if st.button("💾 Save", key="save_monthly"):
+    all_data[year][plant][str(line)][month] = new_val
+    with open(DATA_FILE,'w') as f:
         json.dump(all_data, f, indent=4)
     st.success("Saved!")
 
-# ─── Aggregate Monthly Totals ─────────────────────
-# Build DataFrame of 12 months for this plant
-months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-month_sums = []
-for i, m in enumerate(months, start=1):
-    # Sum all days in that month-year
-    total = 0
-    for d_str, val in all_data.get(key, {}).items():
-        d = datetime.fromisoformat(d_str)
-        if d.year == selected_date.year and d.month == i:
-            total += val
-    month_sums.append(total)
+# ---------- Graph for selected line ----------
+st.subheader(f"📈 Monthly Trend: {plant} Line {line} {year}")
+df_line = pd.DataFrame({m: all_data[year][plant][str(line)][m] for m in months}, index=[0]).T
+fig = px.line(df_line.reset_index(), x='index', y=0, markers=True,
+              labels={'index':'Month',0:'Production'})
+st.plotly_chart(fig, use_container_width=True)
 
-df_month = pd.DataFrame({
-    "Month": months,
-    "Production": month_sums
-})
+# ---------- Plant-level Overview ----------
+st.header("🌱 Plant-Level Total Production")
+plant_totals = []
+for p in plants:
+    total = sum(sum(all_data[year][p][str(l)].values()) for l in lines)
+    plant_totals.append({'Plant':p,'Total':total})
+df_plants = pd.DataFrame(plant_totals)
+st.dataframe(df_plants)
 
-# Show plant total (12 months)
-st.subheader(f"🌱 {plant} Total Production in {selected_date.year}")
-st.bar_chart(df_month.set_index("Month"))
-
-# ─── Show Line Summary Across Plants ─────────────
-# Build a summary table: each line of this plant vs all plants?
-# Actually, show all lines of this same plant:
-st.subheader(f"📈 {plant} – Line {line} Monthly Trend")
-st.line_chart(df_month.set_index("Month"))
-
+# ---------- Line-level Breakdown ----------
+st.header("📊 Line-Level Breakdown (25 lines)")
+line_records = []
+for p in plants:
+    for l in lines:
+        total = sum(all_data[year][p][str(l)].values())
+        line_records.append({'Plant':p,'Line':l,'Total':total})
+df_lines = pd.DataFrame(line_records)
+st.dataframe(df_lines)
