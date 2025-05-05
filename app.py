@@ -40,7 +40,7 @@ if key in all_data:
     monthly_data = all_data[key]
 else:
     monthly_data = {month: 0 for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
+                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
 
 # Show input fields for each month
 st.subheader("Enter Monthly Production Data (in units)")
@@ -48,7 +48,8 @@ cols = st.columns(6)
 months = list(monthly_data.keys())
 for i, month in enumerate(months):
     monthly_data[month] = cols[i % 6].number_input(
-        f"{month}", min_value=0, value=monthly_data[month], step=1)
+        month, min_value=0, value=monthly_data[month], step=1
+    )
 
 # Save button
 if st.button("💾 Save Data"):
@@ -64,52 +65,82 @@ df = pd.DataFrame({
 })
 
 # --- NEW VISUALIZATIONS ---
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Bar Chart", "📈 Line Chart", "📉 Area Chart", "📌 Combined View"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Bar Chart",
+    "📈 Line Chart",
+    "📉 Area Chart",
+    "📌 Combined View"
+])
 
 with tab1:
     st.subheader(f"Production Trend for {plant_name} - {line}")
-    fig_bar = px.bar(df, x="Month", y="Production", 
-                    title=f"{plant_name} - {line} Production",
-                    color="Production", 
-                    color_continuous_scale='reds')
+    fig_bar = px.bar(
+        df, x="Month", y="Production",
+        title=f"{plant_name} - {line} Production",
+        color="Production",
+        color_continuous_scale='reds'
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
 with tab2:
-    st.subheader(f"Monthly Trend Line")
-    fig_line = px.line(df, x="Month", y="Production", 
-                      title=f"Monthly Production Trend",
-                      markers=True)
+    st.subheader("Monthly Trend Line")
+    fig_line = px.line(
+        df, x="Month", y="Production",
+        title="Monthly Production Trend",
+        markers=True
+    )
     fig_line.update_traces(line=dict(color='red', width=3))
     st.plotly_chart(fig_line, use_container_width=True)
 
 with tab3:
-    st.subheader(f"Production Area")
-    fig_area = px.area(df, x="Month", y="Production",
-                      title=f"Production Volume",
-                      color_discrete_sequence=['#FF0000'])
+    st.subheader("Production Area")
+    fig_area = px.area(
+        df, x="Month", y="Production",
+        title="Production Volume",
+        color_discrete_sequence=['#FF0000']
+    )
     st.plotly_chart(fig_area, use_container_width=True)
 
 with tab4:
-    st.subheader(f"Combined Analysis")
-    fig_combined = make_subplots(specs=[[{"secondary_y": False}]])
-    
+    st.subheader(f"Combined Analysis for {plant_name} - {line}")
+    # Allow a secondary y-axis
+    fig_combined = make_subplots(
+        specs=[[{"secondary_y": True}]],
+        subplot_titles=[f"{plant_name} - {line} Comprehensive View"]
+    )
+
+    # Primary y-axis trace
     fig_combined.add_trace(
-        go.Bar(x=df["Month"], y=df["Production"], name="Monthly Production"),
+        go.Bar(
+            x=df["Month"], y=df["Production"],
+            name="Monthly Production",
+            marker_color='crimson'
+        ),
         secondary_y=False,
     )
-    
+
+    # Secondary y-axis trace
     fig_combined.add_trace(
-        go.Scatter(x=df["Month"], y=df["Production"].cumsum(), 
-                  name="Cumulative Production", line=dict(color='red')),
+        go.Scatter(
+            x=df["Month"], y=df["Production"].cumsum(),
+            name="Cumulative Production",
+            mode='lines+markers',
+            line=dict(color='orange')
+        ),
         secondary_y=True,
     )
-    
-    fig_combined.update_layout(
-        title_text=f"{plant_name} - {line} Comprehensive View"
-    )
+
+    # Update axis titles
+    fig_combined.update_xaxes(title_text="Month")
     fig_combined.update_yaxes(title_text="Monthly Production", secondary_y=False)
     fig_combined.update_yaxes(title_text="Cumulative Production", secondary_y=True)
-    
+
+    fig_combined.update_layout(
+        title_text=f"{plant_name} - {line} Comprehensive View",
+        height=500,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
     st.plotly_chart(fig_combined, use_container_width=True)
 
 # --- NEW FEATURES ---
@@ -126,7 +157,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total Production", f"{total:,} units")
 col2.metric("Monthly Average", f"{avg:,.0f} units")
 col3.metric("Peak Month", f"{peak_month} ({peak_value:,})")
-col4.metric("Efficiency", f"{(avg/df['Production'].max()*100):.1f}%")
+col4.metric("Efficiency", f"{(avg/peak_value*100):.1f}%")
 
 # 2. Data Export
 st.subheader("📤 Export Data")
@@ -135,36 +166,22 @@ export_format = st.selectbox("Select format", ["CSV", "Excel", "JSON"])
 if st.button(f"Export as {export_format}"):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"cocacola_production_{plant_name}_{line}_{timestamp}"
-    
     if export_format == "CSV":
-        data = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download CSV",
-            data=data,
-            file_name=f"{filename}.csv",
-            mime="text/csv"
-        )
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download CSV", csv_data, f"{filename}.csv", "text/csv")
     elif export_format == "Excel":
-        data = df.to_excel(index=False)
-        st.download_button(
-            label="Download Excel",
-            data=data,
-            file_name=f"{filename}.xlsx",
-            mime="application/vnd.ms-excel"
-        )
+        excel_data = df.to_excel(index=False)
+        st.download_button("Download Excel", df.to_excel(index=False), f"{filename}.xlsx", "application/vnd.ms-excel")
     else:
-        data = json.dumps({key: monthly_data}, indent=4)
-        st.download_button(
-            label="Download JSON",
-            data=data,
-            file_name=f"{filename}.json",
-            mime="application/json"
-        )
+        json_data = json.dumps({key: monthly_data}, indent=4)
+        st.download_button("Download JSON", json_data, f"{filename}.json", "application/json")
 
 # 3. Comparison View
 st.subheader("🔍 Compare Plants/Lines")
-compare_key = st.selectbox("Select another line to compare", 
-                          [k for k in all_data.keys() if k != key])
+compare_key = st.selectbox(
+    "Select another line to compare",
+    [k for k in all_data.keys() if k != key]
+)
 
 if compare_key and compare_key in all_data:
     compare_df = pd.DataFrame({
@@ -172,54 +189,11 @@ if compare_key and compare_key in all_data:
         "Production": list(all_data[compare_key].values()),
         "Source": compare_key
     })
-    
     df["Source"] = key
     combined_df = pd.concat([df, compare_df])
-    
-    fig_compare = px.line(combined_df, x="Month", y="Production", 
-                         color="Source", title="Production Comparison",
-                         color_discrete_sequence=['red', 'blue'])
+    fig_compare = px.line(
+        combined_df, x="Month", y="Production",
+        color="Source", title="Production Comparison",
+        color_discrete_sequence=['red', 'blue']
+    )
     st.plotly_chart(fig_compare, use_container_width=True)
- with tab4:
-     st.subheader(f"Combined Analysis for {plant_name} – {line}")
-     # Allow a secondary y-axis
-     fig_combined = make_subplots(
-         specs=[[{"secondary_y": True}]],
-         subplot_titles=[f"{plant_name} - {line} Comprehensive View"]
-     )
-
-     # Primary y-axis trace
-     fig_combined.add_trace(
-         go.Bar(
-             x=df["Month"],
-             y=df["Production"],
-             name="Monthly Production",
-             marker_color='crimson'
-         ),
-         secondary_y=False,
-     )
-
-     # Secondary y-axis trace
-     fig_combined.add_trace(
-         go.Scatter(
-             x=df["Month"],
-             y=df["Production"].cumsum(),
-             name="Cumulative Production",
-             mode='lines+markers',
-             line=dict(color='orange')
-         ),
-         secondary_y=True,
-     )
-
-     # Update axis titles
-     fig_combined.update_xaxes(title_text="Month")
-     fig_combined.update_yaxes(title_text="Monthly Production", secondary_y=False)
-     fig_combined.update_yaxes(title_text="Cumulative Production", secondary_y=True)
-
-     fig_combined.update_layout(
-         title_text=f"{plant_name} - {line} Comprehensive View",
-         height=500,
-         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-     )
-
-     st.plotly_chart(fig_combined, use_container_width=True)
