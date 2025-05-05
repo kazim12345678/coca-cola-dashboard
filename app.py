@@ -2,143 +2,75 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Production Dashboard", layout="wide")
 
-# ------------------ Simulated Data ------------------
-data = {
-    'Date': pd.date_range(start='2023-01-01', periods=365, freq='D'),
-    'Production': [int(x) for x in abs(1000 + 500 * pd.Series(range(365)).apply(lambda x: x % 10).astype(int))],
-    'Plant': ['Plant A'] * 365,
-    'Line': ['Line 1'] * 365
-}
-df_daily = pd.DataFrame(data)
-df_daily["Date"] = pd.to_datetime(df_daily["Date"])
+st.title("📊 Coca-Cola Production Dashboard with Image Upload")
 
-# ------------------ Sidebar Filters ------------------
+# Create folders if not exist
+if not os.path.exists("images"):
+    os.makedirs("images")
+
+# Load data
+@st.cache_data
+def load_data():
+    df = pd.read_csv("data.csv")
+    df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
+    df.dropna(subset=["Date"], inplace=True)
+    return df
+
+df = load_data()
+
+# --- Sidebar Selections ---
 st.sidebar.header("Filters")
-plant = st.sidebar.selectbox("Select Plant", df_daily['Plant'].unique())
-line = st.sidebar.selectbox("Select Line", df_daily['Line'].unique())
-year = st.sidebar.selectbox("Select Year", list(range(2023, 2026)))
+all_plants = df["Plant"].unique()
+selected_plant = st.sidebar.selectbox("Select Plant", all_plants)
 
-# ------------------ Filter Data ------------------
-df_filtered = df_daily[(df_daily['Plant'] == plant) & (df_daily['Line'] == line)]
-df_year = df_filtered[df_filtered["Date"].dt.year == year]
-df_month = df_year.copy()
-df_month["Month"] = df_month["Date"].dt.strftime("%B")
+filtered_plant = df[df["Plant"] == selected_plant]
+all_lines = filtered_plant["Line"].unique()
+selected_line = st.sidebar.selectbox("Select Line", all_lines)
 
-# ------------------ Monthly Aggregation ------------------
-df_summary = df_month.groupby("Month")["Production"].sum().reindex(
-    ["January", "February", "March", "April", "May", "June", "July",
-     "August", "September", "October", "November", "December"]
-).reset_index()
+selected_year = st.sidebar.selectbox("Select Year", [2023, 2024, 2025])
+selected_month = st.sidebar.selectbox("Select Month", list(range(1, 13)))
 
-# ------------------ Tabs ------------------
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Monthly View", "🗓 Daily Entry", "📁 Upload Photo", "📈 Combined"])
+# --- Date Range Selection ---
+days_in_month = 31 if selected_month in [1, 3, 5, 7, 8, 10, 12] else (29 if selected_month == 2 and selected_year % 4 == 0 else 30)
+selected_day = st.sidebar.selectbox("Select Day", list(range(1, days_in_month + 1)))
 
-# ------------------ Tab 1: Monthly View ------------------
-with tab1:
-    st.subheader(f"Monthly Production Summary - {plant} - {line} - {year}")
-    st.bar_chart(data=df_summary, x="Month", y="Production")
+selected_date = datetime(selected_year, selected_month, selected_day)
 
-# ------------------ Tab 2: Daily Entry ------------------
-with tab2:
-    st.subheader("Daily Production Entry")
-    selected_month = st.selectbox("Month", df_month["Month"].unique())
-    selected_day = st.selectbox("Day", range(1, 32))
-    try:
-        date_str = f"{year}-{datetime.strptime(selected_month, '%B').month:02d}-{selected_day:02d}"
-        selected_date = pd.to_datetime(date_str)
-    except ValueError:
-        st.error("Invalid date")
-        selected_date = None
+# --- Production Data Entry ---
+st.subheader("🔧 Daily Production Entry")
+new_production = st.number_input(f"Enter Production for {selected_date.date()} on Line {selected_line}", min_value=0)
 
-    if selected_date:
-        production_input = st.number_input("Enter Production", min_value=0, step=10)
-        if st.button("Save Daily"):
-            if selected_date in df_daily["Date"].values:
-                df_daily.loc[df_daily["Date"] == selected_date, "Production"] = production_input
-                st.success(f"Updated production for {selected_date.date()} to {production_input}")
-            else:
-                new_entry = pd.DataFrame({
-                    "Date": [selected_date],
-                    "Production": [production_input],
-                    "Plant": [plant],
-                    "Line": [line]
-                })
-                df_daily = pd.concat([df_daily, new_entry], ignore_index=True)
-                st.success(f"Added production entry for {selected_date.date()}")
+if st.button("Update Production"):
+    # Update or append production
+    new_row = pd.DataFrame({
+        "Plant": [selected_plant],
+        "Line": [selected_line],
+        "Date": [selected_date],
+        "Production": [new_production]
+    })
 
-# ------------------ Tab 3: Photo Upload ------------------
-with tab3:
-    st.subheader("📷 Upload Machine Counter Photo")
+    df = df[df["Date"] != selected_date]  # Remove old record
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv("data.csv", index=False)
+    st.success("✅ Production updated.")
 
-    base_folder = "uploads"
-    plant_folder = os.path.join(base_folder, plant.replace(" ", "_"))
-    line_folder  = os.path.join(plant_folder, line.replace(" ", "_"))
-    date_folder  = os.path.join(line_folder, date_str)
+# --- Image Upload ---
+st.subheader("📷 Upload Machine Counter Image")
+image_filename = f"{selected_plant}_{selected_line}_{selected_date.strftime('%Y-%m-%d')}.jpg"
+uploaded_image = st.file_uploader("Upload Image (jpg, png only)", type=["jpg", "jpeg", "png"], key=image_filename)
 
-    os.makedirs(date_folder, exist_ok=True)
+if uploaded_image is not None:
+    image_path = os.path.join("images", image_filename)
+    with open(image_path, "wb") as f:
+        f.write(uploaded_image.getbuffer())
+    st.success(f"✅ Image saved for {selected_date.date()}.")
+    st.image(image_path, caption="Uploaded Image", use_column_width=True)
 
-    uploaded_file = st.file_uploader("Choose an image file (PNG/JPG)", type=["png", "jpg", "jpeg"], key="uploader")
-
-    if uploaded_file:
-        save_path = os.path.join(date_folder, uploaded_file.name)
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.success(f"Saved image to {save_path}")
-
-    st.markdown(f"**Photos for {date_str}:**")
-    if os.path.isdir(date_folder):
-        imgs = os.listdir(date_folder)
-        if imgs:
-            cols = st.columns(3)
-            for i, img_name in enumerate(imgs):
-                img_path = os.path.join(date_folder, img_name)
-                with cols[i % 3]:
-                    st.image(img_path, use_column_width=True, caption=img_name)
-        else:
-            st.info("No photos uploaded for this date yet.")
-
-# ------------------ Tab 4: Combined Analysis ------------------
-with tab4:
-    st.subheader(f"Combined Analysis for {plant} – {line}")
-    fig_combined = make_subplots(
-        specs=[[{"secondary_y": True}]],
-        subplot_titles=[f"{plant} - {line} Comprehensive View"]
-    )
-
-    fig_combined.add_trace(
-        go.Bar(
-            x=df_summary["Month"],
-            y=df_summary["Production"],
-            name="Monthly Production",
-            marker_color='crimson'
-        ),
-        secondary_y=False,
-    )
-
-    fig_combined.add_trace(
-        go.Scatter(
-            x=df_summary["Month"],
-            y=df_summary["Production"].cumsum(),
-            name="Cumulative Production",
-            mode='lines+markers',
-            line=dict(color='orange')
-        ),
-        secondary_y=True,
-    )
-
-    fig_combined.update_xaxes(title_text="Month")
-    fig_combined.update_yaxes(title_text="Monthly Production", secondary_y=False)
-    fig_combined.update_yaxes(title_text="Cumulative Production", secondary_y=True)
-
-    fig_combined.update_layout(
-        title_text=f"{plant} - {line} Comprehensive View",
-        height=500,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-
-    st.plotly_chart(fig_combined, use_container_width=True)
+# --- Display Table ---
+st.subheader("📅 Monthly Production Overview")
+df_filtered = df[(df["Plant"] == selected_plant) & (df["Line"] == selected_line)]
+df_month = df_filtered[(df_filtered["Date"].dt.year == selected_year) & (df_filtered["Date"].dt.month == selected_month)]
+st.dataframe(df_month.sort_values("Date"))
