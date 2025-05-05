@@ -1,84 +1,153 @@
 import streamlit as st
 import pandas as pd
-import os
-import uuid
-import calendar
 import plotly.express as px
-from datetime import datetime, date
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import json
+import os
+from datetime import datetime
+from io import BytesIO
 
-# Constants
-DATA_FILE = "data.csv"
-IMAGE_FOLDER = "images"
-ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png"]
+# ---------- CONFIG ----------
+st.set_page_config(page_title="Coca-Cola Production Dashboard", layout="wide")
 
-# Ensure image directory exists
-os.makedirs(IMAGE_FOLDER, exist_ok=True)
+DATA_FILE = 'production_data.json'
 
-st.set_page_config(page_title="Coca-Cola Dashboard", layout="wide")
-st.title("📊 Coca-Cola Production Dashboard & 📸 Daily Uploads")
-
-# Load CSV data if available
-@st.cache_data
-def load_data():
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        return df.dropna(subset=["Date"])
-    return pd.DataFrame(columns=["Date", "Plant", "Line", "Production"])
-
-df = load_data()
-
-# --- Sidebar Filters ---
-st.sidebar.header("📅 Filter by Date")
-
-today = date.today()
-year = st.sidebar.selectbox("Select Year", list(range(2023, today.year + 1)), index=len(range(2023, today.year + 1)) - 1)
-month = st.sidebar.selectbox("Select Month", list(calendar.month_name)[1:], index=today.month - 1)
-
-# Filter data by year and month
-df_filtered = df[(df["Date"].dt.year == year) & (df["Date"].dt.month == list(calendar.month_name).index(month))]
-
-# --- Graph Section ---
-if not df_filtered.empty:
-    st.subheader(f"📈 Production Trend for {month} {year}")
-    fig = px.line(df_filtered, x="Date", y="Production", color="Line", markers=True, title="Daily Production")
-    st.plotly_chart(fig, use_container_width=True)
+# ---------- LOAD EXISTING DATA ----------
+if os.path.exists(DATA_FILE):
+    with open(DATA_FILE, 'r') as f:
+        all_data = json.load(f)
 else:
-    st.info("No production data available for selected month and year.")
+    all_data = {}
 
-# --- Image Upload Section ---
-st.markdown("---")
-st.header("📸 Upload Daily Machine Counter")
+# ---------- HEADER ----------
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image("https://1000logos.net/wp-content/uploads/2017/05/Coca-Cola-Logo-500x281.png", width=150)
+with col2:
+    st.title("Coca-Cola Plant Production Dashboard 🎯")
+    st.markdown("Manage and visualize production data by line and plant.")
 
-plant = st.selectbox("Select Plant", ["Plant 1", "Plant 2", "Plant 3"])
-line = st.selectbox("Select Line", ["Line 1", "Line 2", "Line 3"])
-selected_date = st.date_input("Select Date", value=today)
-uploaded_image = st.file_uploader("Upload Counter Image", type=["jpg", "jpeg", "png"])
+# ---------- INPUT SECTION ----------
+plant_name = st.selectbox("Select Plant Name", ["Plant A", "Plant B", "Plant C"])
+line = st.selectbox("Select Line", ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"])
+key = f"{plant_name}_{line}"
 
-if st.button("Upload Image"):
-    if uploaded_image is not None:
-        try:
-            ext = os.path.splitext(uploaded_image.name)[1].lower()
-            if ext not in ALLOWED_EXTENSIONS:
-                st.error("❌ Invalid file type. Only .jpg, .jpeg, and .png are allowed.")
-            else:
-                unique_name = f"{plant}_{line}_{selected_date.strftime('%Y-%m-%d')}_{uuid.uuid4().hex}{ext}"
-                image_path = os.path.join(IMAGE_FOLDER, unique_name)
+# Initialize or load monthly data
+if key in all_data:
+    monthly_data = all_data[key]["data"]
+else:
+    monthly_data = {month: 0 for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
 
-                with open(image_path, "wb") as f:
-                    f.write(uploaded_image.getbuffer())
+# Monthly input fields
+st.subheader("📅 Enter Monthly Production Data")
+cols = st.columns(6)
+months = list(monthly_data.keys())
+for i, month in enumerate(months):
+    monthly_data[month] = cols[i % 6].number_input(
+        f"{month}", min_value=0, value=monthly_data[month], step=1
+    )
 
-                st.success(f"✅ Image saved: {unique_name}")
-        except Exception as e:
-            st.error(f"🚫 Upload failed: {e}")
+# ---------- OPTIONAL IMAGE UPLOAD ----------
+st.subheader("🖼️ Optional: Upload Image (e.g. line snapshot or report)")
+uploaded_image = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+
+# ---------- SAVE BUTTON ----------
+if st.button("💾 Save Data"):
+    all_data[key] = {
+        "data": monthly_data,
+        "image": uploaded_image.name if uploaded_image else None
+    }
+    with open(DATA_FILE, 'w') as f:
+        json.dump(all_data, f, indent=4)
+    st.success("✅ Data saved successfully!")
+
+# ---------- VISUALIZATION ----------
+df = pd.DataFrame({
+    "Month": list(monthly_data.keys()),
+    "Production": list(monthly_data.values())
+})
+
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Bar Chart", "📈 Line Chart", "📉 Area Chart", "📌 Combined View"])
+
+with tab1:
+    st.subheader(f"Bar Chart - {plant_name} - {line}")
+    fig = px.bar(df, x="Month", y="Production", color="Production", color_continuous_scale='reds')
+    st.plotly_chart(fig, use_container_width=True)
+
+with tab2:
+    st.subheader("Line Chart")
+    fig = px.line(df, x="Month", y="Production", markers=True)
+    fig.update_traces(line=dict(color='red', width=3))
+    st.plotly_chart(fig, use_container_width=True)
+
+with tab3:
+    st.subheader("Area Chart")
+    fig = px.area(df, x="Month", y="Production", color_discrete_sequence=['#FF0000'])
+    st.plotly_chart(fig, use_container_width=True)
+
+with tab4:
+    st.subheader("Combined View")
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Bar(x=df["Month"], y=df["Production"], name="Monthly Production"), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df["Month"], y=df["Production"].cumsum(), name="Cumulative", line=dict(color='red')), secondary_y=True)
+    fig.update_layout(title_text=f"{plant_name} - {line} Combined View")
+    fig.update_yaxes(title_text="Monthly", secondary_y=False)
+    fig.update_yaxes(title_text="Cumulative", secondary_y=True)
+    st.plotly_chart(fig, use_container_width=True)
+
+# ---------- METRICS ----------
+st.divider()
+st.subheader("🚀 Performance Metrics")
+total = df["Production"].sum()
+avg = df["Production"].mean()
+peak_month = df.loc[df["Production"].idxmax(), "Month"]
+peak_value = df["Production"].max()
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Production", f"{total:,} units")
+col2.metric("Monthly Average", f"{avg:,.0f} units")
+col3.metric("Peak Month", f"{peak_month} ({peak_value:,})")
+col4.metric("Efficiency", f"{(avg/df['Production'].max()*100):.1f}%" if df["Production"].max() else "0%")
+
+# ---------- EXPORT ----------
+st.subheader("📤 Export Data")
+export_format = st.selectbox("Select export format", ["CSV", "Excel", "JSON"])
+if st.button(f"Export as {export_format}"):
+    filename = f"{plant_name}_{line}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    if export_format == "CSV":
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download CSV", data=csv, file_name=f"{filename}.csv", mime="text/csv")
+    elif export_format == "Excel":
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer) as writer:
+            df.to_excel(writer, index=False)
+        st.download_button("Download Excel", data=buffer.getvalue(), file_name=f"{filename}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
-        st.warning("⚠️ Please upload a file before submitting.")
+        json_data = json.dumps({key: monthly_data}, indent=4)
+        st.download_button("Download JSON", data=json_data, file_name=f"{filename}.json", mime="application/json")
 
-# --- View Uploaded Images ---
-with st.expander("📁 View Uploaded Images"):
-    image_files = sorted(os.listdir(IMAGE_FOLDER), reverse=True)
-    if image_files:
-        for img in image_files:
-            st.image(os.path.join(IMAGE_FOLDER, img), caption=img, use_column_width=True)
-    else:
-        st.info("No images uploaded yet.")
+# ---------- COMPARISON ----------
+st.subheader("🔍 Compare with Another Line")
+compare_key = st.selectbox("Select another Plant-Line to compare", [k for k in all_data.keys() if k != key])
+
+if compare_key:
+    comp_data = all_data[compare_key]["data"]
+    compare_df = pd.DataFrame({
+        "Month": list(comp_data.keys()),
+        "Production": list(comp_data.values()),
+        "Source": compare_key
+    })
+    df["Source"] = key
+    combined_df = pd.concat([df, compare_df])
+    
+    fig = px.line(combined_df, x="Month", y="Production", color="Source",
+                  title="Line Comparison", color_discrete_sequence=['red', 'blue'])
+    st.plotly_chart(fig, use_container_width=True)
+
+# ---------- IMAGE DISPLAY ----------
+if key in all_data and all_data[key].get("image") and uploaded_image:
+    st.subheader("📷 Uploaded Image Preview")
+    st.image(uploaded_image, use_column_width=True)
