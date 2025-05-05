@@ -1,152 +1,144 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import os
+from datetime import datetime
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import json, os, calendar, re
-from datetime import datetime
 
-DATA_FILE = 'production_data.json'
+st.set_page_config(layout="wide")
 
-# ─── Load or initialize data ─────────────────────────────────────────────
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, 'r') as f:
-        all_data = json.load(f)
-else:
-    all_data = {}
+# ------------------ Simulated Data ------------------
+data = {
+    'Date': pd.date_range(start='2023-01-01', periods=365, freq='D'),
+    'Production': [int(x) for x in abs(1000 + 500 * pd.Series(range(365)).apply(lambda x: x % 10).astype(int))],
+    'Plant': ['Plant A'] * 365,
+    'Line': ['Line 1'] * 365
+}
+df_daily = pd.DataFrame(data)
+df_daily["Date"] = pd.to_datetime(df_daily["Date"])
 
-st.set_page_config(page_title="Coca-Cola Production Dashboard", layout="wide")
+# ------------------ Sidebar Filters ------------------
+st.sidebar.header("Filters")
+plant = st.sidebar.selectbox("Select Plant", df_daily['Plant'].unique())
+line = st.sidebar.selectbox("Select Line", df_daily['Line'].unique())
+year = st.sidebar.selectbox("Select Year", list(range(2023, 2026)))
 
-# ─── Branding ─────────────────────────────────────────────────────────────
-col1, col2 = st.columns([1, 4])
-with col1:
-    st.image(
-        "https://1000logos.net/wp-content/uploads/2017/05/Coca-Cola-Logo-500x281.png",
-        width=150
-    )
-with col2:
-    st.title("Coca-Cola Production Dashboard")
-    st.markdown("📅 Daily edit → Monthly aggregates → Interactive charts")
+# ------------------ Filter Data ------------------
+df_filtered = df_daily[(df_daily['Plant'] == plant) & (df_daily['Line'] == line)]
+df_year = df_filtered[df_filtered["Date"].dt.year == year]
+df_month = df_year.copy()
+df_month["Month"] = df_month["Date"].dt.strftime("%B")
 
-# ─── Select Plant & Line ─────────────────────────────────────────────────
-plants = ["Plant A", "Plant B", "Plant C"]
-lines  = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]
-plant  = st.selectbox("Plant", plants)
-line   = st.selectbox("Line", lines)
-key    = f"{plant}_{line}"
+# ------------------ Monthly Aggregation ------------------
+df_summary = df_month.groupby("Month")["Production"].sum().reindex(
+    ["January", "February", "March", "April", "May", "June", "July",
+     "August", "September", "October", "November", "December"]
+).reset_index()
 
-# ─── Daily Data Entry ─────────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("1️⃣ Daily Production Entry")
+# ------------------ Tabs ------------------
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Monthly View", "🗓 Daily Entry", "📁 Upload Photo", "📈 Combined"])
 
-# Year selector
-year = st.selectbox("Year", [2023, 2024, 2025], key="year")
-
-# Month selector using names
-months_abbr = list(calendar.month_name)[1:]  # ['January','February',...]
-month_name = st.selectbox("Month", months_abbr, key="month")
-
-# Convert name back to number to compute days
-month_num = months_abbr.index(month_name) + 1
-ndays     = calendar.monthrange(year, month_num)[1]
-
-# Day selector
-day = st.selectbox("Day", list(range(1, ndays + 1)), key="day")
-
-# Build the date string
-date_str = f"{year:04d}-{month_num:02d}-{day:02d}"
-
-# Prepare daily_data for this key
-if key not in all_data:
-    all_data[key] = {}
-daily_data = all_data[key]
-current    = daily_data.get(date_str, 0)
-
-# Number input and save
-new_val = st.number_input(
-    f"Production on {month_name} {day}, {year}",
-    min_value=0, value=current, step=1
-)
-if st.button("💾 Save Daily", key="save_daily"):
-    daily_data[date_str] = new_val
-    all_data[key]        = daily_data
-    with open(DATA_FILE, 'w') as f:
-        json.dump(all_data, f, indent=4)
-    st.success(f"Saved {new_val} units on {date_str}")
-
-# ─── Aggregate to Monthly Totals ──────────────────────────────────────────
-# Filter valid date entries
-entries = [
-    (d, val) for d, val in daily_data.items()
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", d)
-]
-if entries:
-    df_daily = pd.DataFrame(entries, columns=["Date", "Prod"])
-    df_daily["Date"] = pd.to_datetime(df_daily["Date"], errors="coerce")
-    df_daily = df_daily.dropna(subset=["Date"])
-else:
-    df_daily = pd.DataFrame({
-        "Date": pd.to_datetime([], format="%Y-%m-%d"),
-        "Prod": pd.Series([], dtype="int")
-    })
-
-# Filter by year and sum by month
-df_year    = df_daily[df_daily["Date"].dt.year == year]
-df_monthly = df_year.groupby(df_year["Date"].dt.month)["Prod"].sum()
-months_list = list(calendar.month_abbr)[1:]
-monthly_totals = [int(df_monthly.get(m, 0)) for m in range(1, 13)]
-
-# ─── Show Monthly Table & Charts ──────────────────────────────────────────
-st.markdown("---")
-st.subheader("2️⃣ Monthly Production (Summed)")
-
-table = pd.DataFrame({
-    "Month": months_list,
-    "Production": monthly_totals
-})
-st.dataframe(table)
-
-tab1, tab2 = st.tabs(["📊 Bar Chart", "📈 Line Chart"])
+# ------------------ Tab 1: Monthly View ------------------
 with tab1:
-    fig = px.bar(
-        table, x="Month", y="Production",
-        color="Production", title=f"{plant} {line} Monthly Totals"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.subheader(f"Monthly Production Summary - {plant} - {line} - {year}")
+    st.bar_chart(data=df_summary, x="Month", y="Production")
+
+# ------------------ Tab 2: Daily Entry ------------------
 with tab2:
-    fig = px.line(
-        table, x="Month", y="Production",
-        markers=True, title=f"{plant} {line} Monthly Trend"
+    st.subheader("Daily Production Entry")
+    selected_month = st.selectbox("Month", df_month["Month"].unique())
+    selected_day = st.selectbox("Day", range(1, 32))
+    try:
+        date_str = f"{year}-{datetime.strptime(selected_month, '%B').month:02d}-{selected_day:02d}"
+        selected_date = pd.to_datetime(date_str)
+    except ValueError:
+        st.error("Invalid date")
+        selected_date = None
+
+    if selected_date:
+        production_input = st.number_input("Enter Production", min_value=0, step=10)
+        if st.button("Save Daily"):
+            if selected_date in df_daily["Date"].values:
+                df_daily.loc[df_daily["Date"] == selected_date, "Production"] = production_input
+                st.success(f"Updated production for {selected_date.date()} to {production_input}")
+            else:
+                new_entry = pd.DataFrame({
+                    "Date": [selected_date],
+                    "Production": [production_input],
+                    "Plant": [plant],
+                    "Line": [line]
+                })
+                df_daily = pd.concat([df_daily, new_entry], ignore_index=True)
+                st.success(f"Added production entry for {selected_date.date()}")
+
+# ------------------ Tab 3: Photo Upload ------------------
+with tab3:
+    st.subheader("📷 Upload Machine Counter Photo")
+
+    base_folder = "uploads"
+    plant_folder = os.path.join(base_folder, plant.replace(" ", "_"))
+    line_folder  = os.path.join(plant_folder, line.replace(" ", "_"))
+    date_folder  = os.path.join(line_folder, date_str)
+
+    os.makedirs(date_folder, exist_ok=True)
+
+    uploaded_file = st.file_uploader("Choose an image file (PNG/JPG)", type=["png", "jpg", "jpeg"], key="uploader")
+
+    if uploaded_file:
+        save_path = os.path.join(date_folder, uploaded_file.name)
+        with open(save_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        st.success(f"Saved image to {save_path}")
+
+    st.markdown(f"**Photos for {date_str}:**")
+    if os.path.isdir(date_folder):
+        imgs = os.listdir(date_folder)
+        if imgs:
+            cols = st.columns(3)
+            for i, img_name in enumerate(imgs):
+                img_path = os.path.join(date_folder, img_name)
+                with cols[i % 3]:
+                    st.image(img_path, use_column_width=True, caption=img_name)
+        else:
+            st.info("No photos uploaded for this date yet.")
+
+# ------------------ Tab 4: Combined Analysis ------------------
+with tab4:
+    st.subheader(f"Combined Analysis for {plant} – {line}")
+    fig_combined = make_subplots(
+        specs=[[{"secondary_y": True}]],
+        subplot_titles=[f"{plant} - {line} Comprehensive View"]
     )
-    st.plotly_chart(fig, use_container_width=True)
 
-# ─── Combined Analysis ─────────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("🔗 Combined Analysis")
+    fig_combined.add_trace(
+        go.Bar(
+            x=df_summary["Month"],
+            y=df_summary["Production"],
+            name="Monthly Production",
+            marker_color='crimson'
+        ),
+        secondary_y=False,
+    )
 
-fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
-fig_comb.add_trace(
-    go.Bar(
-        x=table["Month"], y=table["Production"],
-        name="Monthly Production", marker_color='crimson'
-    ),
-    secondary_y=False
-)
-fig_comb.add_trace(
-    go.Scatter(
-        x=table["Month"],
-        y=pd.Series(monthly_totals).cumsum(),
-        name="Cumulative Production",
-        mode='lines+markers',
-        line=dict(color='orange')
-    ),
-    secondary_y=True
-)
-fig_comb.update_xaxes(title_text="Month")
-fig_comb.update_yaxes(title_text="Monthly Production", secondary_y=False)
-fig_comb.update_yaxes(title_text="Cumulative Production", secondary_y=True)
-fig_comb.update_layout(
-    title_text=f"{plant} {line} Combined View",
-    height=500
-)
-st.plotly_chart(fig_comb, use_container_width=True)
+    fig_combined.add_trace(
+        go.Scatter(
+            x=df_summary["Month"],
+            y=df_summary["Production"].cumsum(),
+            name="Cumulative Production",
+            mode='lines+markers',
+            line=dict(color='orange')
+        ),
+        secondary_y=True,
+    )
+
+    fig_combined.update_xaxes(title_text="Month")
+    fig_combined.update_yaxes(title_text="Monthly Production", secondary_y=False)
+    fig_combined.update_yaxes(title_text="Cumulative Production", secondary_y=True)
+
+    fig_combined.update_layout(
+        title_text=f"{plant} - {line} Comprehensive View",
+        height=500,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig_combined, use_container_width=True)
