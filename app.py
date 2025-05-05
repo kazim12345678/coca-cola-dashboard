@@ -33,7 +33,7 @@ for year in all_data:
             all_data[year][p].setdefault(str(l), {m: 0 for m in months})
 
 # ---------- UI ----------
-st.title("🥤 Coca-Cola Production Dashboard")
+st.title("🥤 A. One Production Dashboard")
 
 # Year & Month Filters
 year = st.selectbox("Select Year", [str(y) for y in range(2023, current_year+1)])
