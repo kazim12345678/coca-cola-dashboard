@@ -1,117 +1,51 @@
 import streamlit as st
 import pandas as pd
 import os
-import calendar
-from datetime import datetime
-from PIL import Image
-import re
+from datetime import date
+import uuid
 
-# ------------------------
-# Configuration
-# ------------------------
+# Set page config
+st.set_page_config(page_title="Coca-Cola Dashboard", layout="wide")
 
-DATA_FILE = "data.csv"
-UPLOAD_DIR = "uploads"
+# Create upload directory if it doesn't exist
+UPLOAD_DIR = "images"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ------------------------
-# Initial Setup
-# ------------------------
+st.title("📸 Daily Machine Counter Upload System")
 
-# Ensure uploads directory exists
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-
-# Ensure data file exists
-if not os.path.exists(DATA_FILE):
-    df_init = pd.DataFrame(columns=["Plant", "Line", "Date", "Production"])
-    df_init.to_csv(DATA_FILE, index=False)
-
-# ------------------------
-# Load data function
-# ------------------------
-
-@st.cache_data
-def load_data():
-    return pd.read_csv(DATA_FILE)
-
-# ------------------------
-# UI
-# ------------------------
-
-st.title("🥤 Coca-Cola Daily Production Tracker")
-
-st.header("📋 Daily Entry Form")
-
-plant = st.selectbox("Select Plant", ["Plant A", "Plant B", "Plant C"])
+# Plant and Line Selection
+plant = st.selectbox("Select Plant", ["Plant 1", "Plant 2", "Plant 3"])
 line = st.selectbox("Select Line", ["Line 1", "Line 2", "Line 3"])
 
-# Date selection
-year = st.selectbox("Select Year", list(range(2023, 2026)))
-month_name = st.selectbox("Select Month", list(calendar.month_name)[1:])
-month = list(calendar.month_name).index(month_name)
+# Date Selection using Calendar Input
+selected_date = st.date_input("Select Date", value=date.today(),
+                              min_value=date(2023, 1, 1), max_value=date(2025, 12, 31))
 
-days_in_month = calendar.monthrange(year, month)[1]
-day = st.selectbox("Select Day", list(range(1, days_in_month + 1)))
+# Image Uploader
+uploaded_image = st.file_uploader("Upload Machine Counter Image", type=["jpg", "jpeg", "png"])
 
-# Final selected date
-try:
-    selected_date = datetime(year, month, day)
-except ValueError:
-    st.error("Invalid date selected!")
-    st.stop()
+# Submit button
+if st.button("Save Entry"):
+    if uploaded_image is not None:
+        # Ensure valid file extension
+        ext = os.path.splitext(uploaded_image.name)[1].lower()
+        # Generate unique and safe filename
+        unique_filename = f"{plant}_{line}_{selected_date.strftime('%Y-%m-%d')}_{uuid.uuid4().hex}{ext}"
+        image_path = os.path.join(UPLOAD_DIR, unique_filename)
 
-# Production value
-production = st.number_input("Enter Production (Units)", min_value=0)
-
-# Image uploader
-uploaded_image = st.file_uploader("📸 Upload Machine Counter Image", type=["jpg", "jpeg", "png"])
-
-# ------------------------
-# Save Button
-# ------------------------
-
-if st.button("💾 Save Entry"):
-    # Save to CSV
-    df_new = pd.DataFrame([{
-        "Plant": plant,
-        "Line": line,
-        "Date": selected_date.strftime("%Y-%m-%d"),
-        "Production": production
-    }])
-    df_new.to_csv(DATA_FILE, mode='a', header=False, index=False)
-
-    # Save image
-    if uploaded_image:
-        clean_filename = re.sub(r"[^a-zA-Z0-9_.-]", "_", uploaded_image.name.lower())
-        folder_date = selected_date.strftime("%Y-%m-%d")
-        image_filename = f"{plant}_{line}_{folder_date}_{clean_filename}"
-        image_path = os.path.join(UPLOAD_DIR, image_filename)
+        # Save file
         with open(image_path, "wb") as f:
             f.write(uploaded_image.getbuffer())
 
-    st.success("✅ Entry saved successfully!")
-
-# ------------------------
-# Display Records
-# ------------------------
-
-st.header("📈 Daily Production Records")
-df_display = load_data()
-
-if df_display.empty:
-    st.info("No records found.")
-else:
-    st.dataframe(df_display)
-
-# ------------------------
-# Display Uploaded Images
-# ------------------------
-
-with st.expander("🖼 View Uploaded Images"):
-    files = os.listdir(UPLOAD_DIR)
-    image_files = [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg"))]
-    if image_files:
-        for image_name in sorted(image_files, reverse=True):
-            st.image(os.path.join(UPLOAD_DIR, image_name), caption=image_name, use_column_width=True)
+        st.success(f"✅ Image saved successfully: {unique_filename}")
     else:
-        st.write("No images uploaded yet.")
+        st.warning("⚠️ Please upload an image before saving.")
+
+# Optional: Display uploaded images (for confirmation)
+if st.checkbox("Show Uploaded Images"):
+    images = os.listdir(UPLOAD_DIR)
+    if images:
+        for img_file in sorted(images, reverse=True):
+            st.image(os.path.join(UPLOAD_DIR, img_file), caption=img_file, use_column_width=True)
+    else:
+        st.info("No images uploaded yet.")
