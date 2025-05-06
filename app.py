@@ -18,9 +18,10 @@ st.set_page_config(page_title="Coca-Cola Dashboard", layout="wide")
 st.title("🥤 A. One Production Dashboard")
 
 # ---------- CONSTANTS ----------
-plants = ['Lahore','B','C','D','E','F']
-lines = [1,2,3,4,5]
-months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+plants = ['Lahore', 'B', 'C', 'D', 'E', 'F']
+lines = [1, 2, 3, 4, 5]
+months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 current_year = datetime.now().year
 years = [str(y) for y in range(2023, current_year + 1)]
 
@@ -36,6 +37,7 @@ df = load_data()
 year = st.selectbox("Select Year", years)
 st.markdown(f"**Editing data for year {year}**")
 
+st.subheader("✏️ Edit Monthly Production")
 col1, col2, col3 = st.columns(3)
 with col1:
     plant = st.selectbox("Plant", plants)
@@ -45,32 +47,40 @@ with col3:
     month = st.selectbox("Month", months)
 
 # Get current value from DataFrame
-mask = (df['Year'] == int(year)) & (df['Plant'] == plant) & (df['Line'] == int(line)) & (df['Month'] == month)
+mask = (
+    (df['Year'] == int(year)) &
+    (df['Plant'] == plant) &
+    (df['Line'] == int(line)) &
+    (df['Month'] == month)
+)
 existing_rows = df[mask]
 current_val = int(existing_rows['Production'].values[0]) if not existing_rows.empty else 0
 
 # Input new value
-new_val = st.number_input(f"Production for {plant} Line {line} in {month} {year}", 
-                           min_value=0, value=current_val, step=1)
+new_val = st.number_input(
+    f"Production for {plant} Line {line} in {month} {year}",
+    min_value=0, value=current_val, step=1
+)
 
 # ---------- SAVE ----------
 if st.button("💾 Save"):
     if not existing_rows.empty:
         # Update existing row
         cell = sheet.find(str(year))
-        start_row = cell.row
         for i in range(cell.row, sheet.row_count + 1):
             row = sheet.row_values(i)
             if row and row[0] == str(year) and row[1] == plant and row[2] == str(line) and row[3] == month:
                 sheet.update_cell(i, 5, str(new_val))
                 st.success("✅ Data updated successfully!")
+                st.cache_data.clear()
+                st.rerun()
                 break
     else:
         # Insert new row
         sheet.append_row([year, plant, line, month, new_val])
         st.success("✅ New data saved successfully!")
-
-    st.cache_data.clear()  # Clear cache after saving
+        st.cache_data.clear()
+        st.rerun()
 
 # ---------- PLOTS ----------
 df_filtered = df[df['Year'] == int(year)]
