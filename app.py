@@ -1,4 +1,18 @@
 import streamlit as st
+import gspread
+import json
+from oauth2client.service_account import ServiceAccountCredentials
+
+# Load credentials from Streamlit secrets
+creds_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
+# Authorize and connect to the spreadsheet
+gc = gspread.authorize(credentials)
+sheet = gc.open("Production Dashboard Data").sheet1
+  # Replace with your actual sheet name
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import json
