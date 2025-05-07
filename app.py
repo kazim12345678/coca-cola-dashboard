@@ -4,8 +4,6 @@ import plotly.express as px
 import json
 import os
 from PIL import Image
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 # Setup Page Config
 st.set_page_config(page_title="Coca-Cola Production Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -56,7 +54,7 @@ def load_data():
 def save_data(data):
     try:
         with open(DATA_FILE, "w") as file:
-            json.dump(data, file, indent=4, default=str)  # Convert non-serializable objects to strings
+            json.dump(data, file, indent=4, default=str)  # Fix JSON serialization
     except TypeError as e:
         st.error(f"⚠️ Error saving data: {e}")
 
@@ -94,25 +92,10 @@ summary_data = pd.DataFrame({"Plant": plants, "Total Production": [
     sum(data_store.get(p, {}).get(l, {}).values()) for p in plants for l in lines]})
 st.table(summary_data)
 
-# Export Reports (PDF & Excel)
+# Export Reports (Excel Only)
 st.sidebar.subheader("📜 Download Reports")
-report_type = st.sidebar.radio("Select Report Format", ["Excel", "PDF"])
-
-def generate_pdf():
-    c = canvas.Canvas("production_report.pdf", pagesize=letter)
-    c.drawString(100, 750, "Coca-Cola Production Report")
-    y = 720
-    for index, row in summary_data.iterrows():
-        c.drawString(100, y, f"{row['Plant']}: {row['Total Production']} units")
-        y -= 20
-    c.save()
-
-if st.sidebar.button("Download Report"):
-    if report_type == "Excel":
-        summary_data.to_excel("production_report.xlsx", index=False)
-        st.success("✅ Excel report generated!")
-    elif report_type == "PDF":
-        generate_pdf()
-        st.success("✅ PDF report generated!")
+if st.sidebar.button("Download Excel Report"):
+    summary_data.to_excel("production_report.xlsx", index=False)
+    st.success("✅ Excel report generated!")
 
 st.write("🚀 Future Enhancements: Google Sheets Integration, IoT Data Sync, AI Predictions")
