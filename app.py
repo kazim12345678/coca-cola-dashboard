@@ -8,23 +8,23 @@ from PIL import Image
 # ---------------------------
 # Page Setup & Branding
 # ---------------------------
-st.set_page_config(page_title="Coca-Cola Maintenance Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Coca-Cola Advanced Maintenance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Load & Display Company Logo (Ensure 'coca_cola_logo.png' is present)
+# Load & Display Company Logo (Ensure 'coca_cola_logo.png' exists)
 try:
     logo = Image.open("coca_cola_logo.png")
     st.image(logo, width=200)
 except Exception:
     st.warning("⚠️ Logo not found! Please ensure 'coca_cola_logo.png' is in the working directory.")
 
-st.markdown("<h1 style='color: #E00000;'>Coca-Cola Maintenance Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color: #E00000;'>Coca-Cola Advanced Maintenance Dashboard</h1>", unsafe_allow_html=True)
 
 # ---------------------------
 # Sidebar - Selection Filters
 # ---------------------------
 st.sidebar.title("Settings")
 year = st.sidebar.selectbox("Select Year", list(range(2020, 2031)))
-month = st.sidebar.selectbox("Select Month",
+month = st.sidebar.selectbox("Select Month", 
                              ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
 plants = ["A", "B", "C", "D", "E"]
 lines = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]
@@ -71,21 +71,29 @@ with st.form("new_maintenance_record", clear_on_submit=True):
         "Air Compressor", "Chiller", "DG", "Boiler"
     ]
     equipment = st.selectbox("Equipment Type", equipment_options)
+    fault_code = st.text_input("Fault Code (Optional)")
     last_maintenance_date = st.date_input("Last Maintenance Date")
     status = st.selectbox("Status", ["Operational", "Needs Maintenance", "Urgent"])
     downtime = st.number_input("Downtime (in hours)", min_value=0.0, step=0.1, format="%.1f")
     notes = st.text_area("Maintenance Notes")
     next_maintenance_date = st.date_input("Next Scheduled Maintenance Date")
-    
+    maintenance_cost = st.number_input("Repair Cost ($)", min_value=0.0, step=0.1, format="%.2f")
+
+    # Image Upload for Faulty Parts
+    uploaded_file = st.file_uploader("Upload Faulty Part Image (Optional)", type=["jpg", "png"])
+
     submitted = st.form_submit_button("Add Maintenance Record")
     if submitted:
         new_record = {
             "Equipment": equipment,
+            "FaultCode": fault_code,
             "LastMaintenanceDate": str(last_maintenance_date),
             "Status": status,
             "Downtime": downtime,
             "MaintenanceNotes": notes,
             "NextScheduledMaintenance": str(next_maintenance_date),
+            "RepairCost": maintenance_cost,
+            "ImageUploaded": uploaded_file.name if uploaded_file else None
         }
         if plant not in data_store:
             data_store[plant] = {}
@@ -104,6 +112,14 @@ st.write("### Existing Maintenance Records")
 if plant_maintenance:
     df = pd.DataFrame(plant_maintenance)
     st.dataframe(df)
+
+    # Fault Code Overview
+    if "FaultCode" in df.columns:
+        fault_summary = df["FaultCode"].value_counts().reset_index()
+        fault_summary.columns = ["Fault Code", "Occurrences"]
+        st.subheader("Fault Code Analysis")
+        fig_faults = px.bar(fault_summary, x="Fault Code", y="Occurrences", title="Most Frequent Fault Codes")
+        st.plotly_chart(fig_faults, use_container_width=True)
 
     # Status Overview Pie Chart
     status_counts = df["Status"].value_counts().reset_index()
@@ -135,4 +151,4 @@ if st.sidebar.button("Download Excel Maintenance Report"):
     else:
         st.info("No maintenance records to export.")
 
-st.write("🚀 Future Enhancements: Fault Code Tracking, IoT Integration, Spare Parts Inventory, Predictive Analytics.")
+st.write("🚀 Future Enhancements: IoT Integration, Predictive Failure Analysis, Spare Parts Inventory.")
