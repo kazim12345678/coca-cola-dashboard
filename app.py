@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from PIL import Image
 import json
 import os
+from PIL import Image
 
 # Setup Page Config
 st.set_page_config(page_title="Coca-Cola Production Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -44,8 +44,11 @@ DATA_FILE = "production_data.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as file:
-            return json.load(file)
+        try:
+            with open(DATA_FILE, "r") as file:
+                return json.load(file)
+        except json.JSONDecodeError:
+            return {}  # Handle corrupted JSON file
     return {}
 
 def save_data(data):
