@@ -5,97 +5,131 @@ import json
 import os
 from PIL import Image
 
-# Setup Page Config
-st.set_page_config(page_title="Coca-Cola Production Dashboard", layout="wide", initial_sidebar_state="expanded")
+# ---------------------------
+# Page Setup & Branding
+# ---------------------------
+st.set_page_config(page_title="Coca-Cola Maintenance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Load & Display Company Logo
+# Load & display company logo (ensure 'coca_cola_logo.png' is present)
 try:
-    logo = Image.open("coca_cola_logo.png")  # Ensure this file exists
+    logo = Image.open("coca_cola_logo.png")
     st.image(logo, width=200)
-except:
-    st.warning("⚠️ Logo not found! Ensure 'coca_cola_logo.png' is in the same directory.")
+except Exception:
+    st.warning("⚠️ Logo not found! Please ensure 'coca_cola_logo.png' is in the working directory.")
 
-st.markdown("<h1 style='color: #E00000;'>Coca-Cola Production & Maintenance Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color: #E00000;'>Coca-Cola Maintenance Dashboard</h1>", unsafe_allow_html=True)
 
-# Sidebar Navigation
-tab = st.sidebar.radio("📌 Select Tab", ["Production", "Maintenance", "Reports"])
-
-# Dark Mode Toggle
-dark_mode = st.sidebar.checkbox("🌙 Enable Dark Mode")
-theme_color = "#E00000" if not dark_mode else "#FFFFFF"
-bg_color = "#FFFFFF" if not dark_mode else "#333333"
-st.markdown(f"<style>body {{ background-color: {bg_color}; }}</style>", unsafe_allow_html=True)
-
-# Year, Month, Date Selection
-year = st.sidebar.selectbox("📅 Select Year", list(range(2020, 2031)))
-month = st.sidebar.selectbox("🗓 Select Month",
+# ---------------------------
+# Sidebar - Global Selections
+# ---------------------------
+st.sidebar.title("Settings")
+# Although Maintenance records are not date–specific, we include them for consistency
+year = st.sidebar.selectbox("Select Year", list(range(2020, 2031)))
+month = st.sidebar.selectbox("Select Month", 
                              ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
-date = st.sidebar.date_input("📆 Select Date")
-
-# Plant & Line Selection
+_ = st.sidebar.date_input("Select Date")
 plants = ["A", "B", "C", "D", "E"]
 lines = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]
+plant = st.sidebar.selectbox("Select Plant", plants)
+line = st.sidebar.selectbox("Select Line", lines)
 
-plant = st.sidebar.selectbox("🏭 Select Plant", plants)
-line = st.sidebar.selectbox("🔧 Select Line", lines)
+# ---------------------------
+# File for Maintenance Data Storage
+# ---------------------------
+MAINTENANCE_DATA_FILE = "maintenance_data.json"
 
-# Create a local JSON database file for saving production data
-DATA_FILE = "production_data.json"
-
-def load_data():
-    if os.path.exists(DATA_FILE):
+def load_maintenance_data():
+    """Load maintenance data from a JSON file."""
+    if os.path.exists(MAINTENANCE_DATA_FILE):
         try:
-            with open(DATA_FILE, "r") as file:
-                return json.load(file)
+            with open(MAINTENANCE_DATA_FILE, "r") as f:
+                return json.load(f)
         except json.JSONDecodeError:
-            return {}  # Handle corrupted JSON file
+            return {}
     return {}
 
-def save_data(data):
+def save_maintenance_data(data):
+    """Save maintenance data to a JSON file."""
     try:
-        with open(DATA_FILE, "w") as file:
-            json.dump(data, file, indent=4, default=str)  # Fix JSON serialization
-    except TypeError as e:
-        st.error(f"⚠️ Error saving data: {e}")
+        with open(MAINTENANCE_DATA_FILE, "w") as f:
+            json.dump(data, f, indent=4, default=str)
+    except Exception as e:
+        st.error(f"Error saving maintenance data: {e}")
 
-# Load production data
-data_store = load_data()
-plant_data = data_store.get(plant, {}).get(line, {})  # Load data for selected plant/line
-days = list(range(1, 32))
-data = pd.DataFrame({"Date": days, "Production": [plant_data.get(str(day), 0) for day in days]})
+# Load existing maintenance data
+maint_data = load_maintenance_data()
+# Get records for the selected plant & line (if any)
+plant_maint_records = maint_data.get(plant, {}).get(line, [])
 
-# Editable Production Table
-st.subheader(f"📊 Production Data Entry for {plant}, {line}")
-edited_data = st.data_editor(data, key="production_entry")
+st.subheader(f"Maintenance Records for Plant {plant} – {line}")
 
-# Save Production Data
-if st.button("💾 Save Production Data"):
-    if plant not in data_store:
-        data_store[plant] = {}
-    data_store[plant][line] = {str(day): int(edited_data.iloc[day-1]["Production"]) for day in days}
-    save_data(data_store)
-    st.success("✅ Data saved successfully!")
+# ---------------------------
+# Form for Adding a New Maintenance Record
+# ---------------------------
+with st.form("new_maintenance_record", clear_on_submit=True):
+    st.write("### Add New Maintenance Record")
+    # Equipment options (production line equipment and utilities)
+    equipment_options = [
+        "KHS", "Krones", "Sidel", "Stretch Blowing", 
+        "Filler", "Labeler", "Packer", "Palletizer",
+        "Air Compressor", "Chiller", "DG", "Boiler"
+    ]
+    equipment = st.selectbox("Equipment", equipment_options)
+    last_maintenance_date = st.date_input("Last Maintenance Date")
+    status = st.selectbox("Status", ["Operational", "Needs Maintenance", "Urgent"])
+    notes = st.text_area("Maintenance Notes")
+    next_maintenance_date = st.date_input("Next Scheduled Maintenance Date")
+    downtime = st.number_input("Downtime (in hours)", min_value=0.0, step=0.1, format="%.1f")
+    submitted = st.form_submit_button("Add Maintenance Record")
+    
+    if submitted:
+        new_record = {
+            "Equipment": equipment,
+            "LastMaintenanceDate": str(last_maintenance_date),
+            "Status": status,
+            "MaintenanceNotes": notes,
+            "NextScheduledMaintenance": str(next_maintenance_date),
+            "Downtime": downtime
+        }
+        if plant not in maint_data:
+            maint_data[plant] = {}
+        if line not in maint_data[plant]:
+            maint_data[plant][line] = []
+        maint_data[plant][line].append(new_record)
+        save_maintenance_data(maint_data)
+        st.success("✅ Maintenance record added successfully!")
+        # Refresh current records list
+        plant_maint_records = maint_data[plant][line]
 
-# Low Production Alert
-if edited_data["Production"].mean() < 1000:
-    st.error(f"⚠️ Low Production Alert! Avg. daily production: {edited_data['Production'].mean()} units")
+# ---------------------------
+# Display Existing Maintenance Records
+# ---------------------------
+st.write("### Existing Maintenance Records")
+if plant_maint_records:
+    maint_df = pd.DataFrame(plant_maint_records)
+    st.dataframe(maint_df)
+    
+    # Summary chart: Count of records per equipment type
+    summary_counts = maint_df["Equipment"].value_counts().reset_index()
+    summary_counts.columns = ["Equipment", "Count"]
+    st.subheader("Maintenance Records Summary by Equipment")
+    fig = px.bar(summary_counts, x="Equipment", y="Count", title="Maintenance Records Count")
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No maintenance records available for this plant and line.")
 
-# Monthly Production Graph (Animated)
-st.subheader("📈 Monthly Production Trends")
-fig = px.line(edited_data, x="Date", y="Production", title=f"Production Trends for {line} in {month}", markers=True)
-fig.update_layout(transition_duration=500)
-st.plotly_chart(fig, use_container_width=True)
+# ---------------------------
+# Export Functionality
+# ---------------------------
+st.sidebar.subheader("Export Maintenance Report")
+if st.sidebar.button("Download Excel Maintenance Report"):
+    if plant_maint_records:
+        export_df = pd.DataFrame(plant_maint_records)
+        export_df["Plant"] = plant
+        export_df["Line"] = line
+        export_df.to_excel("maintenance_report.xlsx", index=False)
+        st.success("✅ Excel maintenance report generated!")
+    else:
+        st.info("No maintenance records to export.")
 
-# Accurate Plant-Wise Production Summary
-st.subheader("🏭 Total Production Summary")
-summary_data = pd.DataFrame({"Plant": plants, "Total Production": [
-    sum(data_store.get(p, {}).get(l, {}).values()) for p in plants for l in lines]})
-st.table(summary_data)
-
-# Export Reports (Excel Only)
-st.sidebar.subheader("📜 Download Reports")
-if st.sidebar.button("Download Excel Report"):
-    summary_data.to_excel("production_report.xlsx", index=False)
-    st.success("✅ Excel report generated!")
-
-st.write("🚀 Future Enhancements: Google Sheets Integration, IoT Data Sync, AI Predictions")
+st.write("🚀 Future enhancements: Add fault codes, upload images, integrate IoT sensor data, track spare parts inventory, and more.")
