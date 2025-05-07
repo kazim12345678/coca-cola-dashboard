@@ -45,7 +45,6 @@ filter_priority = st.sidebar.radio("Show Priority:", ["All", "High", "Medium", "
 # ---------------------------
 st.subheader("🔹 Weekly Maintenance Tracker")
 
-# Sample Weekly Maintenance Data Structure
 weekly_tasks = [
     {"No": 1, "Location": "Preform Hopper", "Activity": "Clean & apply grease for cam & bearing", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "High", "Technician": "John"},
     {"No": 2, "Location": "Roller", "Activity": "Check roller condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "Medium", "Technician": "Mike"},
@@ -53,23 +52,19 @@ weekly_tasks = [
     {"No": 4, "Location": "Chiller Filters", "Activity": "Clean & Check", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "High", "Technician": "Sam"},
 ]
 
-# Convert Weekly Maintenance Data to DataFrame
 df_weekly = pd.DataFrame(weekly_tasks)
 
-# Convert Task Completion to Checkboxes
 df_weekly["Week1"] = st.checkbox("Week 1 ✅", value=False, key="week1")
 df_weekly["Week2"] = st.checkbox("Week 2 ✅", value=False, key="week2")
 df_weekly["Week3"] = st.checkbox("Week 3 ✅", value=False, key="week3")
 df_weekly["Week4"] = st.checkbox("Week 4 ✅", value=False, key="week4")
 df_weekly["Week5"] = st.checkbox("Week 5 ✅", value=False, key="week5")
 
-# Save Updated Weekly Maintenance Data
 if st.button("💾 Save Weekly Maintenance"):
     data_store["weekly"] = df_weekly.to_dict(orient="records")
     save_data(data_store)
     st.success("✅ Weekly Maintenance Data Saved!")
 
-# Display Weekly Maintenance Table
 st.dataframe(df_weekly)
 
 # ---------------------------
@@ -77,29 +72,22 @@ st.dataframe(df_weekly)
 # ---------------------------
 st.subheader("🔹 Monthly Maintenance Tracker")
 
-# Sample Monthly Maintenance Data Structure
 monthly_tasks = [
     {"No": 1, "Location": "Oven reflector", "Activity": "Clean & inspect", "Completed": False, "Priority": "High", "Technician": "John", "Remarks": ""},
     {"No": 2, "Location": "Mandrel cam & roller", "Activity": "Check Wear/Tear", "Completed": False, "Priority": "Medium", "Technician": "Mike", "Remarks": ""},
     {"No": 3, "Location": "Elevator Belt", "Activity": "Check Wear/Tear", "Completed": False, "Priority": "Low", "Technician": "Alex", "Remarks": ""},
 ]
 
-# Convert Monthly Maintenance Data to DataFrame
 df_monthly = pd.DataFrame(monthly_tasks)
 
-# Mark Completion Checkboxes
 df_monthly["Completed"] = st.checkbox("Mark as ✅ Completed", value=False)
-
-# Remarks Section
 df_monthly["Remarks"] = st.text_area("Add Remarks")
 
-# Save Updated Monthly Maintenance Data
 if st.button("💾 Save Monthly Maintenance"):
     data_store["monthly"] = df_monthly.to_dict(orient="records")
     save_data(data_store)
     st.success("✅ Monthly Maintenance Data Saved!")
 
-# Display Monthly Maintenance Table
 st.dataframe(df_monthly)
 
 # ---------------------------
@@ -107,7 +95,7 @@ st.dataframe(df_monthly)
 # ---------------------------
 st.subheader("🚨 Critical Alerts")
 
-weekly_completed = df_weekly.iloc[:, 3:].sum(axis=1).mean() / 5 * 100
+weekly_completed = pd.to_numeric(df_weekly.iloc[:, 3:].sum(axis=1), errors='coerce').mean() / 5 * 100
 monthly_completed = df_monthly["Completed"].mean() * 100
 
 if weekly_completed < 50:
@@ -128,10 +116,8 @@ spare_parts = [
 ]
 
 df_inventory = pd.DataFrame(spare_parts)
-
 st.table(df_inventory)
 
-# Highlight parts below reorder level
 for index, row in df_inventory.iterrows():
     if row["Stock"] < row["Reorder Level"]:
         st.warning(f"⚠️ Low stock alert for {row['Part']}! Consider reordering.")
