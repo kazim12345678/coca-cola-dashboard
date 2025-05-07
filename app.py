@@ -1,154 +1,132 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import json
 import os
-from PIL import Image
 
 # ---------------------------
 # Page Setup & Branding
 # ---------------------------
-st.set_page_config(page_title="Coca-Cola Advanced Maintenance Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Blowing Machine Maintenance Tracker", layout="wide")
 
-# Load & Display Company Logo (Ensure 'coca_cola_logo.png' exists)
-try:
-    logo = Image.open("coca_cola_logo.png")
-    st.image(logo, width=200)
-except Exception:
-    st.warning("⚠️ Logo not found! Please ensure 'coca_cola_logo.png' is in the working directory.")
-
-st.markdown("<h1 style='color: #E00000;'>Coca-Cola Advanced Maintenance Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color: #E00000;'>Blowing Machine Maintenance Dashboard</h1>", unsafe_allow_html=True)
 
 # ---------------------------
-# Sidebar - Selection Filters
+# Data File Setup
 # ---------------------------
-st.sidebar.title("Settings")
-year = st.sidebar.selectbox("Select Year", list(range(2020, 2031)))
-month = st.sidebar.selectbox("Select Month", 
-                             ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
-plants = ["A", "B", "C", "D", "E"]
-lines = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]
-plant = st.sidebar.selectbox("Select Plant", plants)
-line = st.sidebar.selectbox("Select Line", lines)
-
-# ---------------------------
-# Maintenance Data File
-# ---------------------------
-MAINTENANCE_DATA_FILE = "maintenance_data.json"
+DATA_FILE = "maintenance_schedule.json"
 
 def load_data():
-    """Load maintenance data from a JSON file."""
-    if os.path.exists(MAINTENANCE_DATA_FILE):
+    """Load maintenance data from JSON file"""
+    if os.path.exists(DATA_FILE):
         try:
-            with open(MAINTENANCE_DATA_FILE, "r") as f:
-                return json.load(f)
+            with open(DATA_FILE, "r") as file:
+                return json.load(file)
         except json.JSONDecodeError:
             return {}
     return {}
 
 def save_data(data):
-    """Save maintenance data to a JSON file."""
-    try:
-        with open(MAINTENANCE_DATA_FILE, "w") as f:
-            json.dump(data, f, indent=4, default=str)
-    except Exception as e:
-        st.error(f"Error saving maintenance data: {e}")
+    """Save maintenance data to JSON file"""
+    with open(DATA_FILE, "w") as file:
+        json.dump(data, file, indent=4, default=str)
 
 # Load maintenance data
 data_store = load_data()
-plant_maintenance = data_store.get(plant, {}).get(line, [])
-
-st.subheader(f"Maintenance Records for Plant {plant} – {line}")
 
 # ---------------------------
-# Maintenance Record Form
+# Weekly Maintenance Tracker
 # ---------------------------
-with st.form("new_maintenance_record", clear_on_submit=True):
-    st.write("### Add New Maintenance Record")
-    equipment_options = [
-        "KHS", "Krones", "Sidel", "Stretch Blowing", 
-        "Filler", "Labeler", "Packer", "Palletizer",
-        "Air Compressor", "Chiller", "DG", "Boiler"
-    ]
-    equipment = st.selectbox("Equipment Type", equipment_options)
-    fault_code = st.text_input("Fault Code (Optional)")
-    last_maintenance_date = st.date_input("Last Maintenance Date")
-    status = st.selectbox("Status", ["Operational", "Needs Maintenance", "Urgent"])
-    downtime = st.number_input("Downtime (in hours)", min_value=0.0, step=0.1, format="%.1f")
-    notes = st.text_area("Maintenance Notes")
-    next_maintenance_date = st.date_input("Next Scheduled Maintenance Date")
-    maintenance_cost = st.number_input("Repair Cost ($)", min_value=0.0, step=0.1, format="%.2f")
+st.subheader("🔹 Weekly Maintenance Tracker")
 
-    # Image Upload for Faulty Parts
-    uploaded_file = st.file_uploader("Upload Faulty Part Image (Optional)", type=["jpg", "png"])
+# Sample Weekly Maintenance Data Structure
+weekly_tasks = [
+    {"No": 1, "Location": "Preform Hopper", "Activity": "Clean & apply grease for cam & bearing", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+    {"No": 2, "Location": "Preform Hopper", "Activity": "Check chain & sprocket condition and apply grease", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+    {"No": 3, "Location": "Roller", "Activity": "Check roller condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+    {"No": 4, "Location": "Preform return conveyor", "Activity": "Check belt condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+    {"No": 5, "Location": "Chiller Filters", "Activity": "Clean & Check", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+]
 
-    submitted = st.form_submit_button("Add Maintenance Record")
-    if submitted:
-        new_record = {
-            "Equipment": equipment,
-            "FaultCode": fault_code,
-            "LastMaintenanceDate": str(last_maintenance_date),
-            "Status": status,
-            "Downtime": downtime,
-            "MaintenanceNotes": notes,
-            "NextScheduledMaintenance": str(next_maintenance_date),
-            "RepairCost": maintenance_cost,
-            "ImageUploaded": uploaded_file.name if uploaded_file else None
-        }
-        if plant not in data_store:
-            data_store[plant] = {}
-        if line not in data_store[plant]:
-            data_store[plant][line] = []
-        data_store[plant][line].append(new_record)
-        save_data(data_store)
-        st.success("✅ Maintenance record added successfully!")
-        # Refresh records
-        plant_maintenance = data_store[plant][line]
+# Convert Weekly Maintenance Data to DataFrame
+df_weekly = pd.DataFrame(weekly_tasks)
+
+# Convert Task Completion to Checkboxes
+df_weekly["Week1"] = st.checkbox("Week 1 ✅", value=False, key="week1")
+df_weekly["Week2"] = st.checkbox("Week 2 ✅", value=False, key="week2")
+df_weekly["Week3"] = st.checkbox("Week 3 ✅", value=False, key="week3")
+df_weekly["Week4"] = st.checkbox("Week 4 ✅", value=False, key="week4")
+df_weekly["Week5"] = st.checkbox("Week 5 ✅", value=False, key="week5")
+
+# Save Updated Weekly Maintenance Data
+if st.button("💾 Save Weekly Maintenance"):
+    data_store["weekly"] = df_weekly.to_dict(orient="records")
+    save_data(data_store)
+    st.success("✅ Weekly Maintenance Data Saved!")
+
+# Display Weekly Maintenance Table
+st.dataframe(df_weekly)
 
 # ---------------------------
-# Maintenance Dashboard & Summary Charts
+# Monthly Maintenance Tracker
 # ---------------------------
-st.write("### Existing Maintenance Records")
-if plant_maintenance:
-    df = pd.DataFrame(plant_maintenance)
-    st.dataframe(df)
+st.subheader("🔹 Monthly Maintenance Tracker")
 
-    # Fault Code Overview
-    if "FaultCode" in df.columns:
-        fault_summary = df["FaultCode"].value_counts().reset_index()
-        fault_summary.columns = ["Fault Code", "Occurrences"]
-        st.subheader("Fault Code Analysis")
-        fig_faults = px.bar(fault_summary, x="Fault Code", y="Occurrences", title="Most Frequent Fault Codes")
-        st.plotly_chart(fig_faults, use_container_width=True)
+# Sample Monthly Maintenance Data Structure
+monthly_tasks = [
+    {"No": 1, "Location": "Oven reflector", "Activity": "Clean & inspect", "Completed": False, "Remarks": ""},
+    {"No": 2, "Location": "Mandrel cam & roller", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
+    {"No": 3, "Location": "Hopper belt", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
+    {"No": 4, "Location": "Elevator Belt", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
+    {"No": 5, "Location": "Head wheel / Blow wheel", "Activity": "Check zero setting", "Completed": False, "Remarks": ""},
+]
 
-    # Status Overview Pie Chart
-    status_counts = df["Status"].value_counts().reset_index()
-    status_counts.columns = ["Status", "Count"]
-    st.subheader("Equipment Status Overview")
-    fig_status = px.pie(status_counts, names="Status", values="Count", title="Maintenance Status Distribution")
-    st.plotly_chart(fig_status, use_container_width=True)
+# Convert Monthly Maintenance Data to DataFrame
+df_monthly = pd.DataFrame(monthly_tasks)
 
-    # Downtime Analysis Bar Chart
-    downtime_summary = df.groupby("Equipment")["Downtime"].sum().reset_index()
-    st.subheader("Total Downtime Analysis (hrs)")
-    fig_downtime = px.bar(downtime_summary, x="Equipment", y="Downtime", title="Total Downtime per Equipment Type")
-    st.plotly_chart(fig_downtime, use_container_width=True)
+# Mark Completion Checkboxes
+df_monthly["Completed"] = st.checkbox("Mark as ✅ Completed", value=False)
 
-else:
-    st.info("No maintenance records available for this plant and line.")
+# Remarks Section
+df_monthly["Remarks"] = st.text_area("Add Remarks")
+
+# Save Updated Monthly Maintenance Data
+if st.button("💾 Save Monthly Maintenance"):
+    data_store["monthly"] = df_monthly.to_dict(orient="records")
+    save_data(data_store)
+    st.success("✅ Monthly Maintenance Data Saved!")
+
+# Display Monthly Maintenance Table
+st.dataframe(df_monthly)
 
 # ---------------------------
-# Export to Excel
+# Maintenance Overview & Alerts
+# ---------------------------
+st.subheader("📊 Maintenance Overview")
+
+# Calculate Completion Percentage
+weekly_completed = df_weekly.iloc[:, 3:].sum(axis=1).mean() / 5 * 100
+monthly_completed = df_monthly["Completed"].mean() * 100
+
+# Show Maintenance Progress
+st.progress(int(weekly_completed), text="✅ Weekly Completion Progress")
+st.progress(int(monthly_completed), text="✅ Monthly Completion Progress")
+
+# Alert for Overdue Maintenance
+if weekly_completed < 50:
+    st.error("⚠️ Weekly Maintenance Below 50%! Urgent action required.")
+if monthly_completed < 50:
+    st.error("⚠️ Monthly Maintenance Below 50%! Urgent action required.")
+
+# ---------------------------
+# Export Maintenance Reports
 # ---------------------------
 st.sidebar.subheader("Export Maintenance Report")
-if st.sidebar.button("Download Excel Maintenance Report"):
-    if plant_maintenance:
-        export_df = pd.DataFrame(plant_maintenance)
-        export_df["Plant"] = plant
-        export_df["Line"] = line
-        export_df.to_excel("maintenance_report.xlsx", index=False)
-        st.success("✅ Excel maintenance report generated!")
-    else:
-        st.info("No maintenance records to export.")
+if st.sidebar.button("Download Excel Report"):
+    weekly_export = pd.DataFrame(data_store.get("weekly", []))
+    monthly_export = pd.DataFrame(data_store.get("monthly", []))
+    with pd.ExcelWriter("Maintenance_Report.xlsx") as writer:
+        weekly_export.to_excel(writer, sheet_name="Weekly Tracker", index=False)
+        monthly_export.to_excel(writer, sheet_name="Monthly Tracker", index=False)
+    st.success("✅ Excel maintenance report generated!")
 
-st.write("🚀 Future Enhancements: IoT Integration, Predictive Failure Analysis, Spare Parts Inventory.")
+st.write("🚀 Future Enhancements: Spare Parts Inventory, Predictive AI Maintenance, IoT Data Integration.")
