@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+from datetime import datetime
 
 # ---------------------------
 # Page Setup & Branding
 # ---------------------------
 st.set_page_config(page_title="Blowing Machine Maintenance Tracker", layout="wide")
-
 st.markdown("<h1 style='color: #E00000;'>Blowing Machine Maintenance Dashboard</h1>", unsafe_allow_html=True)
 
 # ---------------------------
@@ -34,17 +34,23 @@ def save_data(data):
 data_store = load_data()
 
 # ---------------------------
+# Sidebar Filters & Settings
+# ---------------------------
+st.sidebar.title("Filter Maintenance Tasks")
+filter_status = st.sidebar.radio("Show Records:", ["All", "Pending", "Completed", "Urgent"])
+filter_priority = st.sidebar.radio("Show Priority:", ["All", "High", "Medium", "Low"])
+
+# ---------------------------
 # Weekly Maintenance Tracker
 # ---------------------------
 st.subheader("🔹 Weekly Maintenance Tracker")
 
 # Sample Weekly Maintenance Data Structure
 weekly_tasks = [
-    {"No": 1, "Location": "Preform Hopper", "Activity": "Clean & apply grease for cam & bearing", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-    {"No": 2, "Location": "Preform Hopper", "Activity": "Check chain & sprocket condition and apply grease", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-    {"No": 3, "Location": "Roller", "Activity": "Check roller condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-    {"No": 4, "Location": "Preform return conveyor", "Activity": "Check belt condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-    {"No": 5, "Location": "Chiller Filters", "Activity": "Clean & Check", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
+    {"No": 1, "Location": "Preform Hopper", "Activity": "Clean & apply grease for cam & bearing", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "High", "Technician": "John"},
+    {"No": 2, "Location": "Roller", "Activity": "Check roller condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "Medium", "Technician": "Mike"},
+    {"No": 3, "Location": "Preform return conveyor", "Activity": "Check belt condition", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "Low", "Technician": "Alex"},
+    {"No": 4, "Location": "Chiller Filters", "Activity": "Clean & Check", "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False, "Priority": "High", "Technician": "Sam"},
 ]
 
 # Convert Weekly Maintenance Data to DataFrame
@@ -73,11 +79,9 @@ st.subheader("🔹 Monthly Maintenance Tracker")
 
 # Sample Monthly Maintenance Data Structure
 monthly_tasks = [
-    {"No": 1, "Location": "Oven reflector", "Activity": "Clean & inspect", "Completed": False, "Remarks": ""},
-    {"No": 2, "Location": "Mandrel cam & roller", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
-    {"No": 3, "Location": "Hopper belt", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
-    {"No": 4, "Location": "Elevator Belt", "Activity": "Check Wear/Tear", "Completed": False, "Remarks": ""},
-    {"No": 5, "Location": "Head wheel / Blow wheel", "Activity": "Check zero setting", "Completed": False, "Remarks": ""},
+    {"No": 1, "Location": "Oven reflector", "Activity": "Clean & inspect", "Completed": False, "Priority": "High", "Technician": "John", "Remarks": ""},
+    {"No": 2, "Location": "Mandrel cam & roller", "Activity": "Check Wear/Tear", "Completed": False, "Priority": "Medium", "Technician": "Mike", "Remarks": ""},
+    {"No": 3, "Location": "Elevator Belt", "Activity": "Check Wear/Tear", "Completed": False, "Priority": "Low", "Technician": "Alex", "Remarks": ""},
 ]
 
 # Convert Monthly Maintenance Data to DataFrame
@@ -99,34 +103,53 @@ if st.button("💾 Save Monthly Maintenance"):
 st.dataframe(df_monthly)
 
 # ---------------------------
-# Maintenance Overview & Alerts
+# Alerts for Overdue Maintenance
 # ---------------------------
-st.subheader("📊 Maintenance Overview")
+st.subheader("🚨 Critical Alerts")
 
-# Calculate Completion Percentage
 weekly_completed = df_weekly.iloc[:, 3:].sum(axis=1).mean() / 5 * 100
 monthly_completed = df_monthly["Completed"].mean() * 100
 
-# Show Maintenance Progress
-st.progress(int(weekly_completed), text="✅ Weekly Completion Progress")
-st.progress(int(monthly_completed), text="✅ Monthly Completion Progress")
-
-# Alert for Overdue Maintenance
 if weekly_completed < 50:
-    st.error("⚠️ Weekly Maintenance Below 50%! Urgent action required.")
+    st.error("⚠️ Weekly Maintenance Below 50%! Immediate action required.")
 if monthly_completed < 50:
-    st.error("⚠️ Monthly Maintenance Below 50%! Urgent action required.")
+    st.error("⚠️ Monthly Maintenance Below 50%! Immediate action required.")
+
+# ---------------------------
+# Spare Parts Inventory System
+# ---------------------------
+st.subheader("🛠 Spare Parts Inventory")
+
+spare_parts = [
+    {"Part": "Mandrel Roller", "Stock": 15, "Reorder Level": 5},
+    {"Part": "Oven Sensor", "Stock": 8, "Reorder Level": 3},
+    {"Part": "Elevator Belt", "Stock": 2, "Reorder Level": 5},
+    {"Part": "Blow Wheel", "Stock": 12, "Reorder Level": 4},
+]
+
+df_inventory = pd.DataFrame(spare_parts)
+
+st.table(df_inventory)
+
+# Highlight parts below reorder level
+for index, row in df_inventory.iterrows():
+    if row["Stock"] < row["Reorder Level"]:
+        st.warning(f"⚠️ Low stock alert for {row['Part']}! Consider reordering.")
 
 # ---------------------------
 # Export Maintenance Reports
 # ---------------------------
-st.sidebar.subheader("Export Maintenance Report")
+st.sidebar.subheader("📤 Export Maintenance Report")
 if st.sidebar.button("Download Excel Report"):
     weekly_export = pd.DataFrame(data_store.get("weekly", []))
     monthly_export = pd.DataFrame(data_store.get("monthly", []))
+    inventory_export = pd.DataFrame(spare_parts)
+    
     with pd.ExcelWriter("Maintenance_Report.xlsx") as writer:
         weekly_export.to_excel(writer, sheet_name="Weekly Tracker", index=False)
         monthly_export.to_excel(writer, sheet_name="Monthly Tracker", index=False)
+        inventory_export.to_excel(writer, sheet_name="Spare Parts Inventory", index=False)
+    
     st.success("✅ Excel maintenance report generated!")
 
-st.write("🚀 Future Enhancements: Spare Parts Inventory, Predictive AI Maintenance, IoT Data Integration.")
+st.write("🚀 Future Enhancements: Predictive AI Maintenance, IoT Sensor Integration.")
