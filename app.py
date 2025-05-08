@@ -1,198 +1,56 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import json
-import os
-from datetime import datetime
-from PIL import Image
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ---------------------------
-# Page Setup & Branding
+# Streamlit Page Configuration
 # ---------------------------
-st.set_page_config(page_title="Coca-Cola Production & Maintenance Dashboard", layout="wide")
-st.markdown("<h1 style='color: #E00000;'>Coca-Cola Production & Maintenance Dashboard</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="Production Dashboard (Google Sheets)", layout="wide")
+st.markdown("# Production Dashboard (Google Sheets)")
 
-# Display Company Logo
+# ---------------------------
+# Google Sheets Setup
+# ---------------------------
+SPREADSHEET_NAME = "Production Dashboard Data"  # Update with your sheet's name
+CREDS_FILE = "credentials.json"  # Ensure the credentials file exists
+
+# Define authentication scope and credentials
+scope = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scope)
+client = gspread.authorize(creds)
+
+# Open the Google Sheet (first worksheet)
 try:
-    logo = Image.open("coca_cola_logo.png")
-    st.image(logo, width=200)
-except Exception:
-    st.warning("⚠️ Logo not found! Please ensure 'coca_cola_logo.png' is in the working directory.")
+    sheet = client.open(SPREADSHEET_NAME).sheet1
+    data = sheet.get_all_records()
+except Exception as e:
+    st.error(f"Unable to open Google Sheet: {e}")
+    st.stop()
+
+# Convert data to Pandas DataFrame
+df = pd.DataFrame(data)
 
 # ---------------------------
-# Sidebar: Module Selection & Settings
+# Data Display & Filtering
 # ---------------------------
-module = st.sidebar.radio("Select Module", ["Production", "Maintenance"])
+st.write("### Production Data Table")
+st.dataframe(df)
 
-# Common selections for both modules
-plants = ["A", "B", "C", "D", "E"]
-lines = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]
-plant = st.sidebar.selectbox("Select Plant", plants)
-line = st.sidebar.selectbox("Select Line", lines)
+# Filter Production Data by Plant and Line
+plant_filter = st.sidebar.selectbox("Filter by Plant", df["Plant"].unique())
+line_filter = st.sidebar.selectbox("Filter by Line", df["Line"].unique())
 
-# ---------------------------
-# JSON File Paths & Utility Functions
-# ---------------------------
-PROD_FILE = "production_data.json"
-MAINT_FILE = "maintenance_data.json"
-
-def load_json(file_path):
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-def save_json(data, file_path):
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=4, default=str)
+filtered_df = df[(df["Plant"] == plant_filter) & (df["Line"] == line_filter)]
+st.write(f"### Filtered Production Data for Plant {plant_filter} - Line {line_filter}")
+st.dataframe(filtered_df)
 
 # ---------------------------
-# Production Module
+# Production Trend Visualization
 # ---------------------------
-if module == "Production":
-    st.subheader(f"Production Data Entry for Plant {plant}, {line}")
+st.write("### Production Trend Analysis")
+fig = px.line(filtered_df, x="Date", y="Production", title=f"Production Trend - Plant {plant_filter}, Line {line_filter}")
+fig.update_layout(transition_duration=500)
+st.plotly_chart(fig, use_container_width=True)
 
-    # Load existing production data
-    prod_data = load_json(PROD_FILE)
-    plant_data = prod_data.get(plant, {}).get(line, {})
-    dates = list(range(1, 32))
-    production_values = [plant_data.get(str(d), 0) for d in dates]
-
-    prod_df = pd.DataFrame({
-        "Date": dates,
-        "Production": production_values
-    })
-
-    # Editable production table (using Streamlit’s data_editor)
-    edited_prod = st.data_editor(prod_df, key="prod_editor")
-
-    if st.button("💾 Save Production Data"):
-        if plant not in prod_data:
-            prod_data[plant] = {}
-        prod_data[plant][line] = {str(d): int(edited_prod.iloc[d-1]["Production"]) for d in dates}
-        save_json(prod_data, PROD_FILE)
-        st.success("✅ Production data saved successfully!")
-
-    # Alert if average production is below threshold (e.g., 1000 units)
-    avg_prod = edited_prod["Production"].mean()
-    if avg_prod < 1000:
-        st.error(f"⚠️ Low Production Alert: Average daily production = {avg_prod:.2f} units")
-
-    # Production Trend Graph
-    fig_prod = px.line(edited_prod, x="Date", y="Production", title=f"Production Trend for {line}")
-    fig_prod.update_layout(transition_duration=500)
-    st.plotly_chart(fig_prod, use_container_width=True)
-
-    # Export Production Report as Excel
-    if st.sidebar.button("Download Production Excel Report"):
-        export_df = prod_df.copy()
-        export_df.to_excel("production_report.xlsx", index=False)
-        st.success("✅ Production Excel report generated!")
-
-# ---------------------------
-# Maintenance Module
-# ---------------------------
-elif module == "Maintenance":
-    st.subheader(f"Maintenance Tracker for Plant {plant}, {line}")
-    maint_data = load_json(MAINT_FILE)
-
-    # Use two tabs: Weekly and Monthly Maintenance Trackers
-    tab_weekly, tab_monthly = st.tabs(["Weekly Maintenance Tracker", "Monthly Maintenance Tracker"])
-
-    # -------- Weekly Maintenance Tracker --------
-    with tab_weekly:
-        st.markdown("### Weekly Maintenance Tracker")
-        # Sample Weekly Maintenance Tasks
-        weekly_tasks = [
-            {"No": 1, "Location": "Preform Hopper", "Activity": "Clean & apply grease for cam & bearing", 
-             "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-            {"No": 2, "Location": "Preform Hopper", "Activity": "Check chain & sprocket condition and apply grease", 
-             "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-            {"No": 3, "Location": "Roller", "Activity": "Check roller condition", 
-             "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-            {"No": 4, "Location": "Preform return conveyor", "Activity": "Check belt condition", 
-             "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-            {"No": 5, "Location": "Chiller Filters", "Activity": "Clean & Check", 
-             "Week1": False, "Week2": False, "Week3": False, "Week4": False, "Week5": False},
-        ]
-        df_weekly = pd.DataFrame(weekly_tasks)
-        # Allow users to edit and mark tasks as complete (checkboxes)
-        edited_weekly = st.data_editor(df_weekly, key="weekly_editor")
-
-        if st.button("💾 Save Weekly Maintenance", key="save_weekly"):
-            if plant not in maint_data:
-                maint_data[plant] = {}
-            if line not in maint_data[plant]:
-                maint_data[plant][line] = {}
-            maint_data[plant][line]["weekly"] = edited_weekly.to_dict(orient="records")
-            save_json(maint_data, MAINT_FILE)
-            st.success("✅ Weekly Maintenance data saved!")
-
-        st.dataframe(edited_weekly)
-
-        # Weekly Completion Percentage Calculation
-        # Convert weekly checkbox columns (Week1 to Week5) to numeric
-        weekly_numeric = edited_weekly.loc[:, "Week1":"Week5"].astype(int)
-        weekly_completed = weekly_numeric.sum(axis=1).mean() / 5 * 100
-        st.write(f"**Weekly Completion:** {weekly_completed:.1f}%")
-        st.progress(int(weekly_completed))
-
-    # -------- Monthly Maintenance Tracker --------
-    with tab_monthly:
-        st.markdown("### Monthly Maintenance Tracker")
-        # Sample Monthly Maintenance Tasks
-        monthly_tasks = [
-            {"No": 1, "Location": "Oven reflector", "Activity": "Clean & inspect", "Completed": False, "Remark": ""},
-            {"No": 2, "Location": "Mandrel cam & roller", "Activity": "Check Wear/Tear", "Completed": False, "Remark": ""},
-            {"No": 3, "Location": "Hopper belt", "Activity": "Check Wear/Tear", "Completed": False, "Remark": ""},
-            {"No": 4, "Location": "Elevator Belt", "Activity": "Check Wear/Tear", "Completed": False, "Remark": ""},
-            {"No": 5, "Location": "Head wheel / Blow wheel", "Activity": "Check zero setting", "Completed": False, "Remark": ""},
-        ]
-        df_monthly = pd.DataFrame(monthly_tasks)
-        edited_monthly = st.data_editor(df_monthly, key="monthly_editor")
-
-        if st.button("💾 Save Monthly Maintenance", key="save_monthly"):
-            if plant not in maint_data:
-                maint_data[plant] = {}
-            if line not in maint_data[plant]:
-                maint_data[plant][line] = {}
-            maint_data[plant][line]["monthly"] = edited_monthly.to_dict(orient="records")
-            save_json(maint_data, MAINT_FILE)
-            st.success("✅ Monthly Maintenance data saved!")
-
-        st.dataframe(edited_monthly)
-        # Calculate monthly completion percentage based on 'Completed' boolean column
-        monthly_numeric = edited_monthly["Completed"].astype(int)
-        monthly_completed = monthly_numeric.mean() * 100
-        st.write(f"**Monthly Completion:** {monthly_completed:.1f}%")
-        st.progress(int(monthly_completed))
-
-    # -------- Spare Parts Inventory Section --------
-    st.subheader("🛠 Spare Parts Inventory")
-    spare_parts = [
-        {"Part": "Mandrel Roller", "Stock": 15, "Reorder Level": 5},
-        {"Part": "Oven Sensor", "Stock": 8, "Reorder Level": 3},
-        {"Part": "Elevator Belt", "Stock": 2, "Reorder Level": 5},
-        {"Part": "Blow Wheel", "Stock": 12, "Reorder Level": 4},
-    ]
-    df_inventory = pd.DataFrame(spare_parts)
-    st.table(df_inventory)
-    for idx, row in df_inventory.iterrows():
-        if row["Stock"] < row["Reorder Level"]:
-            st.warning(f"⚠️ Low stock alert for {row['Part']}! Consider reordering.")
-
-    # -------- Export Maintenance Report --------
-    if st.sidebar.button("Download Maintenance Excel Report"):
-        weekly_export = pd.DataFrame(maint_data.get(plant, {}).get(line, {}).get("weekly", []))
-        monthly_export = pd.DataFrame(maint_data.get(plant, {}).get(line, {}).get("monthly", []))
-        inventory_export = pd.DataFrame(spare_parts)
-        with pd.ExcelWriter("Maintenance_Report.xlsx") as writer:
-            weekly_export.to_excel(writer, sheet_name="Weekly Tracker", index=False)
-            monthly_export.to_excel(writer, sheet_name="Monthly Tracker", index=False)
-            inventory_export.to_excel(writer, sheet_name="Spare Parts Inventory", index=False)
-        st.success("✅ Maintenance Excel report generated!")
-
-st.write("🚀 Future Enhancements: Predictive AI Maintenance, IoT Sensor Integration, Spare Parts Inventory Management, and more.")
+st.write("🚀 Ready for Next Step: Connecting This Data to Our Main Dashboard")
