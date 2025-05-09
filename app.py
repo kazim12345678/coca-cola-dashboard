@@ -32,3 +32,5 @@ try:
     st.dataframe(df)
 except Exception as e:
     st.error(f"Error fetching data: {e}")
+    if st.button("Refresh Data"):
+    st.experimental_rerun()
