@@ -10,17 +10,17 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 SPREADSHEET_NAME = "Production Dashboard Data"  # Your Google Sheet name
 
-# Define scopes with write permissions to allow updates.
+# Define scopes with read-only permissions since all updates happen externally.
 scope = [
-    "https://www.googleapis.com/auth/spreadsheets",  # Full access to spreadsheets
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
     "https://www.googleapis.com/auth/drive.readonly"
 ]
 
 # Load credentials from Streamlit secrets.
-# Ensure your Streamlit Cloud secrets (secrets.toml) has a [gcp_service_account] entry.
+# Ensure that your secrets.toml (or Streamlit Cloud secrets) has a [gcp_service_account] section.
 creds_info = st.secrets["gcp_service_account"]
 
-# Create credentials and authorize the gspread client.
+# Create credentials using the service account info and scopes.
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 client = gspread.authorize(creds)
 
@@ -42,35 +42,7 @@ def load_data():
 df = load_data()
 
 # -------------------------------------------------------------------
-# FUNCTION TO UPDATE GOOGLE SHEET WITH CSV DATA
-# -------------------------------------------------------------------
-def update_sheet_with_csv(new_df):
-    sheet = client.open(SPREADSHEET_NAME).sheet1
-    sheet.clear()  # Clear existing data
-    # Prepare data: header row followed by the data rows.
-    data_to_update = [new_df.columns.tolist()] + new_df.values.tolist()
-    sheet.update("A1", data_to_update)
-
-# -------------------------------------------------------------------
-# SIDEBAR: CSV UPLOADER to Update the Google Sheet
-# -------------------------------------------------------------------
-st.sidebar.header("Update Google Sheet with CSV")
-uploaded_file = st.sidebar.file_uploader("Upload CSV file", type="csv")
-if uploaded_file is not None:
-    try:
-        df_csv = pd.read_csv(uploaded_file)
-        st.sidebar.write("Preview of CSV Data:")
-        st.sidebar.dataframe(df_csv.head())
-        if st.sidebar.button("Update Google Sheet"):
-            update_sheet_with_csv(df_csv)
-            st.sidebar.success("Google Sheet updated!")
-            # Rerun the app to load new data.
-            st.experimental_rerun()
-    except Exception as e:
-        st.sidebar.error(f"Error processing CSV: {e}")
-
-# -------------------------------------------------------------------
-# SIDEBAR: Data Viewing Filters
+# SIDEBAR: Interactive Filters
 # -------------------------------------------------------------------
 st.sidebar.header("View Filters")
 if "Plant" in df.columns:
@@ -86,7 +58,7 @@ else:
 # -------------------------------------------------------------------
 st.title("Production Dashboard")
 
-# Display KPIs in two columns (if column exists)
+# Display Key Metrics (KPIs) in two columns if the data exists.
 col1, col2 = st.columns(2)
 if "Production" in filtered_df.columns:
     total_production = filtered_df["Production"].sum()
@@ -97,7 +69,7 @@ else:
     col1.write("No Production column found")
     col2.write("No Production column found")
 
-# Altair bar chart demonstration (if needed columns are available)
+# Create an Altair bar chart showing Production by Plant if columns exist.
 if "Plant" in filtered_df.columns and "Production" in filtered_df.columns:
     chart = alt.Chart(filtered_df).mark_bar().encode(
         x=alt.X('Plant:N', title="Plant"),
@@ -106,10 +78,10 @@ if "Plant" in filtered_df.columns and "Production" in filtered_df.columns:
     ).properties(title="Production by Plant")
     st.altair_chart(chart, use_container_width=True)
 
-# Display the DataFrame
+# Display the full data table.
 st.subheader("Production Data")
 st.dataframe(filtered_df)
 
-# Optional manual refresh button
+# Optional: A manual refresh button.
 if st.button("Refresh Data"):
     st.experimental_rerun()
