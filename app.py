@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Streamlit Input Data"  # Update with your new Google Sheet name
+SPREADSHEET_NAME = "Machine Counter Details"  # Updated Sheet Name
 
 # Define authentication scopes (including write permissions)
 scope = [
