@@ -37,7 +37,7 @@ st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60
 st.title("Machine Counter Entry Form")
 
 # User Input Fields
-date = st.date_input("Select Date")
+date = str(st.date_input("Select Date"))  # Convert date to string before submitting
 blowing_counter = st.number_input("Blowing Counter", min_value=0)
 filler_counter = st.number_input("Filler Counter", min_value=0)
 labeller_counter = st.number_input("Labeller Counter", min_value=0)
@@ -56,7 +56,7 @@ if st.button("Submit Data"):
     difference = palatizer_counter - actual_transfer
 
     # Prepare data as a list
-    new_row = [date, blowing_counter, filler_counter, labeller_counter, tra_counter,
+    new_row = [timestamp, date, blowing_counter, filler_counter, labeller_counter, tra_counter,
                kister_counter, palatizer_counter, actual_transfer, difference, comments]
 
     try:
@@ -74,8 +74,17 @@ st.subheader("Live Machine Counter Data")
 
 @st.cache_data(ttl=30)  # Cache data for 30 seconds to reduce API calls
 def load_data():
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
+    try:
+        data = sheet.get_all_records()
+        if not data:  # If Google Sheets doesn't return records, create an empty table structure
+            return pd.DataFrame(columns=["Timestamp", "Date", "Blowing Counter", "Filler Counter", 
+                                         "Labeller Counter", "TRA Counter", "Kister Counter",
+                                         "Palatizer Counter", "Actual Production Transfer",
+                                         "Difference", "Comments"])
+        return pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"❌ Error loading data: {e}")
+        return pd.DataFrame()
 
 df = load_data()
 st.dataframe(df)
