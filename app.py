@@ -37,7 +37,8 @@ st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60
 st.title("Machine Counter Entry Form")
 
 # User Input Fields
-date = str(st.date_input("Select Date"))  # Convert date to string before submitting
+date = st.date_input("Select Date")
+date_str = date.strftime("%Y-%m-%d")  # Convert date to string before submitting
 blowing_counter = st.number_input("Blowing Counter", min_value=0)
 filler_counter = st.number_input("Filler Counter", min_value=0)
 labeller_counter = st.number_input("Labeller Counter", min_value=0)
@@ -47,16 +48,16 @@ palatizer_counter = st.number_input("Palatizer Counter", min_value=0)
 actual_transfer = st.number_input("Actual Production Transfer", min_value=0)
 comments = st.text_area("Additional Comments (Optional)")
 
+# Automatically calculate the difference between Palatizer Counter and Actual Transfer
+difference = palatizer_counter - actual_transfer
+
 # Submit Button
 if st.button("Submit Data"):
     # Capture current timestamp
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Auto-calculate difference between Palatizer Counter and Actual Production Transfer
-    difference = palatizer_counter - actual_transfer
-
     # Prepare data as a list
-    new_row = [timestamp, date, blowing_counter, filler_counter, labeller_counter, tra_counter,
+    new_row = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
                kister_counter, palatizer_counter, actual_transfer, difference, comments]
 
     try:
@@ -76,7 +77,7 @@ st.subheader("Live Machine Counter Data")
 def load_data():
     try:
         data = sheet.get_all_records()
-        if not data:  # If Google Sheets doesn't return records, create an empty table structure
+        if not data:  # If Google Sheets is empty, create a default table structure
             return pd.DataFrame(columns=["Timestamp", "Date", "Blowing Counter", "Filler Counter", 
                                          "Labeller Counter", "TRA Counter", "Kister Counter",
                                          "Palatizer Counter", "Actual Production Transfer",
