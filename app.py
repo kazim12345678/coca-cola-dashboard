@@ -8,9 +8,9 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Machine Counter Details"  # Updated Sheet Name
+SPREADSHEET_NAME = "Machine Counter Details"  # Ensure correct sheet name
 
-# Define authentication scopes (including write permissions)
+# Define authentication scopes (with write permissions)
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -32,23 +32,32 @@ sheet = client.open(SPREADSHEET_NAME).sheet1
 st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60 seconds
 
 # -------------------------------------------------------------------
-# STREAMLIT FORM TO ENTER DATA
+# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA
 # -------------------------------------------------------------------
-st.title("Submit Data to Google Sheets")
+st.title("Machine Counter Entry Form")
 
 # User Input Fields
-name = st.text_input("Enter your name:")
-plant = st.selectbox("Select plant:", ["Plant A", "Plant B", "Plant C"])
-production = st.number_input("Enter production count:", min_value=0)
-remarks = st.text_area("Additional remarks (optional):")
+date = st.date_input("Select Date")
+blowing_counter = st.number_input("Blowing Counter", min_value=0)
+filler_counter = st.number_input("Filler Counter", min_value=0)
+labeller_counter = st.number_input("Labeller Counter", min_value=0)
+tra_counter = st.number_input("TRA Counter", min_value=0)
+kister_counter = st.number_input("Kister Counter", min_value=0)
+palatizer_counter = st.number_input("Palatizer Counter", min_value=0)
+actual_transfer = st.number_input("Actual Production Transfer", min_value=0)
+comments = st.text_area("Additional Comments (Optional)")
 
 # Submit Button
 if st.button("Submit Data"):
-    # Capture the current timestamp
+    # Capture current timestamp
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Auto-calculate difference between Palatizer Counter and Actual Production Transfer
+    difference = palatizer_counter - actual_transfer
+
     # Prepare data as a list
-    new_row = [timestamp, name, plant, production, remarks]
+    new_row = [date, blowing_counter, filler_counter, labeller_counter, tra_counter,
+               kister_counter, palatizer_counter, actual_transfer, difference, comments]
 
     try:
         # Append data to Google Sheets
@@ -59,9 +68,9 @@ if st.button("Submit Data"):
         st.error(f"❌ Error saving data: {e}")
 
 # -------------------------------------------------------------------
-# DISPLAY UPDATED DATA
+# DISPLAY LIVE DATA FROM GOOGLE SHEETS
 # -------------------------------------------------------------------
-st.subheader("Live Data from Google Sheets")
+st.subheader("Live Machine Counter Data")
 
 @st.cache_data(ttl=30)  # Cache data for 30 seconds to reduce API calls
 def load_data():
