@@ -2,86 +2,77 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-import altair as alt
+import datetime
 from streamlit_autorefresh import st_autorefresh
 
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Production Dashboard Data"  # Your Google Sheet name
+SPREADSHEET_NAME = "Streamlit Input Data"  # Update with your new Google Sheet name
 
-# Define scopes with read-only permissions since all updates happen externally.
+# Define authentication scopes (including write permissions)
 scope = [
-    "https://www.googleapis.com/auth/spreadsheets.readonly",
-    "https://www.googleapis.com/auth/drive.readonly"
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
 ]
 
-# Load credentials from Streamlit secrets.
-# Ensure that your secrets.toml (or Streamlit Cloud secrets) has a [gcp_service_account] section.
+# Load credentials from Streamlit secrets
 creds_info = st.secrets["gcp_service_account"]
 
-# Create credentials using the service account info and scopes.
+# Create credentials using the service account info
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 client = gspread.authorize(creds)
 
-# -------------------------------------------------------------------
-# AUTO-REFRESH SETUP (Refreshes every 60 seconds)
-# -------------------------------------------------------------------
-st_autorefresh(interval=60000, limit=100, key="datarefresh")
+# Open the sheet
+sheet = client.open(SPREADSHEET_NAME).sheet1
 
 # -------------------------------------------------------------------
-# DATA LOADING WITH CACHING (Cached for 30 seconds)
+# AUTO-REFRESH FUNCTIONALITY
 # -------------------------------------------------------------------
-@st.cache_data(ttl=30)
+st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60 seconds
+
+# -------------------------------------------------------------------
+# STREAMLIT FORM TO ENTER DATA
+# -------------------------------------------------------------------
+st.title("Submit Data to Google Sheets")
+
+# User Input Fields
+name = st.text_input("Enter your name:")
+plant = st.selectbox("Select plant:", ["Plant A", "Plant B", "Plant C"])
+production = st.number_input("Enter production count:", min_value=0)
+remarks = st.text_area("Additional remarks (optional):")
+
+# Submit Button
+if st.button("Submit Data"):
+    # Capture the current timestamp
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Prepare data as a list
+    new_row = [timestamp, name, plant, production, remarks]
+
+    try:
+        # Append data to Google Sheets
+        sheet.append_row(new_row)
+        st.success("✅ Data submitted successfully!")
+
+    except Exception as e:
+        st.error(f"❌ Error saving data: {e}")
+
+# -------------------------------------------------------------------
+# DISPLAY UPDATED DATA
+# -------------------------------------------------------------------
+st.subheader("Live Data from Google Sheets")
+
+@st.cache_data(ttl=30)  # Cache data for 30 seconds to reduce API calls
 def load_data():
-    sheet = client.open(SPREADSHEET_NAME).sheet1
     data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    return df
+    return pd.DataFrame(data)
 
 df = load_data()
+st.dataframe(df)
 
 # -------------------------------------------------------------------
-# SIDEBAR: Interactive Filters
+# MANUAL REFRESH BUTTON (OPTIONAL)
 # -------------------------------------------------------------------
-st.sidebar.header("View Filters")
-if "Plant" in df.columns:
-    selected_plants = st.sidebar.multiselect(
-        "Select Plants", options=df["Plant"].unique(), default=df["Plant"].unique()
-    )
-    filtered_df = df[df["Plant"].isin(selected_plants)]
-else:
-    filtered_df = df
-
-# -------------------------------------------------------------------
-# MAIN DASHBOARD: KPIs, Charts, and Data Table
-# -------------------------------------------------------------------
-st.title("Production Dashboard")
-
-# Display Key Metrics (KPIs) in two columns if the data exists.
-col1, col2 = st.columns(2)
-if "Production" in filtered_df.columns:
-    total_production = filtered_df["Production"].sum()
-    average_production = round(filtered_df["Production"].mean(), 2)
-    col1.metric("Total Production", total_production)
-    col2.metric("Average Production", average_production)
-else:
-    col1.write("No Production column found")
-    col2.write("No Production column found")
-
-# Create an Altair bar chart showing Production by Plant if columns exist.
-if "Plant" in filtered_df.columns and "Production" in filtered_df.columns:
-    chart = alt.Chart(filtered_df).mark_bar().encode(
-        x=alt.X('Plant:N', title="Plant"),
-        y=alt.Y('Production:Q', title="Production"),
-        tooltip=['Plant', 'Production']
-    ).properties(title="Production by Plant")
-    st.altair_chart(chart, use_container_width=True)
-
-# Display the full data table.
-st.subheader("Production Data")
-st.dataframe(filtered_df)
-
-# Optional: A manual refresh button.
 if st.button("Refresh Data"):
     st.experimental_rerun()
