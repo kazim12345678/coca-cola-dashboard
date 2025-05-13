@@ -8,9 +8,9 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Machine Counter Details"  # Ensure correct sheet name
+SPREADSHEET_NAME = "Machine Counter Details"  # Name of the Google Sheets file
 
-# Define authentication scopes (with write permissions)
+# Define authentication scopes (including write permissions)
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -18,13 +18,18 @@ scope = [
 
 # Load credentials from Streamlit secrets
 creds_info = st.secrets["gcp_service_account"]
-
-# Create credentials using the service account info
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open the sheet
-sheet = client.open(SPREADSHEET_NAME).sheet1
+# -------------------------------------------------------------------
+# SELECT WHICH SHEET TO USE
+# -------------------------------------------------------------------
+spreadsheet = client.open(SPREADSHEET_NAME)
+sheet_names = [sheet.title for sheet in spreadsheet.worksheets()]  # Get all sheet names
+
+# Dropdown in sidebar to select sheet
+selected_sheet_name = st.sidebar.selectbox("Select Sheet:", sheet_names)
+selected_sheet = spreadsheet.worksheet(selected_sheet_name)
 
 # -------------------------------------------------------------------
 # AUTO-REFRESH FUNCTIONALITY
@@ -34,11 +39,10 @@ st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60
 # -------------------------------------------------------------------
 # STREAMLIT FORM TO ENTER MACHINE COUNTER DATA
 # -------------------------------------------------------------------
-st.title("Machine Counter Entry Form")
+st.title(f"Submit Data to {selected_sheet_name}")
 
-# User Input Fields
 date = st.date_input("Select Date")
-date_str = date.strftime("%Y-%m-%d")  # Convert date to string before submitting
+date_str = date.strftime("%Y-%m-%d")  # Convert date to string
 blowing_counter = st.number_input("Blowing Counter", min_value=0)
 filler_counter = st.number_input("Filler Counter", min_value=0)
 labeller_counter = st.number_input("Labeller Counter", min_value=0)
@@ -53,32 +57,26 @@ difference = palatizer_counter - actual_transfer
 
 # Submit Button
 if st.button("Submit Data"):
-    # Capture current timestamp
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Prepare data as a list
     new_row = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
                kister_counter, palatizer_counter, actual_transfer, difference, comments]
-
     try:
-        # Append data to Google Sheets
-        sheet.append_row(new_row)
-        st.success("✅ Data submitted successfully!")
-
+        selected_sheet.append_row(new_row)
+        st.success(f"✅ Data submitted successfully to {selected_sheet_name}!")
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
 
 # -------------------------------------------------------------------
 # DISPLAY LIVE DATA FROM GOOGLE SHEETS
 # -------------------------------------------------------------------
-st.subheader("Live Machine Counter Data")
+st.subheader(f"Live Data from {selected_sheet_name}")
 
-@st.cache_data(ttl=30)  # Cache data for 30 seconds to reduce API calls
-def load_data():
+@st.cache_data(ttl=30)
+def load_data(sheet):
     try:
         data = sheet.get_all_records()
-        if not data:  # If Google Sheets is empty, create a default table structure
-            return pd.DataFrame(columns=["Timestamp", "Date", "Blowing Counter", "Filler Counter", 
+        if not data:
+            return pd.DataFrame(columns=["Timestamp", "Date", "Blowing Counter", "Filler Counter",
                                          "Labeller Counter", "TRA Counter", "Kister Counter",
                                          "Palatizer Counter", "Actual Production Transfer",
                                          "Difference", "Comments"])
@@ -87,7 +85,7 @@ def load_data():
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame()
 
-df = load_data()
+df = load_data(selected_sheet)
 st.dataframe(df)
 
 # -------------------------------------------------------------------
