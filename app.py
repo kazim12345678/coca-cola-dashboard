@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Machine Counter Details"  # Name of the Google Sheets file
+SPREADSHEET_NAME = "Machine Counter Details"  # Google Sheets file name
 
 # Define authentication scopes (including write permissions)
 scope = [
@@ -21,15 +21,10 @@ creds_info = st.secrets["gcp_service_account"]
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 client = gspread.authorize(creds)
 
-# -------------------------------------------------------------------
-# SELECT WHICH SHEET TO USE
-# -------------------------------------------------------------------
+# Open the spreadsheet and both sheets
 spreadsheet = client.open(SPREADSHEET_NAME)
-sheet_names = [sheet.title for sheet in spreadsheet.worksheets()]  # Get all sheet names
-
-# Dropdown in sidebar to select sheet
-selected_sheet_name = st.sidebar.selectbox("Select Sheet:", sheet_names)
-selected_sheet = spreadsheet.worksheet(selected_sheet_name)
+sheet1 = spreadsheet.worksheet("Sheet1")
+sheet2 = spreadsheet.worksheet("Sheet2")
 
 # -------------------------------------------------------------------
 # AUTO-REFRESH FUNCTIONALITY
@@ -37,9 +32,9 @@ selected_sheet = spreadsheet.worksheet(selected_sheet_name)
 st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60 seconds
 
 # -------------------------------------------------------------------
-# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA
+# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA (Sheet1)
 # -------------------------------------------------------------------
-st.title(f"Submit Data to {selected_sheet_name}")
+st.title("Submit Data to Sheet1")
 
 date = st.date_input("Select Date")
 date_str = date.strftime("%Y-%m-%d")  # Convert date to string
@@ -58,18 +53,30 @@ difference = palatizer_counter - actual_transfer
 # Submit Button
 if st.button("Submit Data"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_row = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
-               kister_counter, palatizer_counter, actual_transfer, difference, comments]
+    
+    # Prepare data for Sheet1
+    new_row_sheet1 = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
+                      kister_counter, palatizer_counter, actual_transfer, difference, comments]
+    
+    # Prepare data for Sheet2
+    OEE = actual_transfer / 79992  # Calculate OEE
+    new_row_sheet2 = [date_str, actual_transfer, OEE]
+    
     try:
-        selected_sheet.append_row(new_row)
-        st.success(f"✅ Data submitted successfully to {selected_sheet_name}!")
+        # Append data to Sheet1
+        sheet1.append_row(new_row_sheet1)
+        # Append corresponding data to Sheet2
+        sheet2.append_row(new_row_sheet2)
+        
+        st.success("✅ Data submitted successfully! (Sheet1 and Sheet2 updated)")
+    
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
 
 # -------------------------------------------------------------------
-# DISPLAY LIVE DATA FROM GOOGLE SHEETS
+# DISPLAY LIVE DATA FROM BOTH SHEETS
 # -------------------------------------------------------------------
-st.subheader(f"Live Data from {selected_sheet_name}")
+st.subheader("Live Data from Sheet1")
 
 @st.cache_data(ttl=30)
 def load_data(sheet):
@@ -85,8 +92,13 @@ def load_data(sheet):
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame()
 
-df = load_data(selected_sheet)
-st.dataframe(df)
+df_sheet1 = load_data(sheet1)
+st.dataframe(df_sheet1)
+
+st.subheader("Live Data from Sheet2")
+
+df_sheet2 = load_data(sheet2)
+st.dataframe(df_sheet2)
 
 # -------------------------------------------------------------------
 # MANUAL REFRESH BUTTON (OPTIONAL)
