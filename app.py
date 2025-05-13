@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Machine Counter Details"  # Google Sheets file name
+SPREADSHEET_NAME = "New Sheet Name"  # Replace with the correct new file name
 
 # Define authentication scopes (including write permissions)
 scope = [
@@ -21,10 +21,9 @@ creds_info = st.secrets["gcp_service_account"]
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open the spreadsheet and both sheets
+# Open the spreadsheet
 spreadsheet = client.open(SPREADSHEET_NAME)
-sheet1 = spreadsheet.worksheet("Sheet1")
-sheet2 = spreadsheet.worksheet("Sheet2")
+new_sheet = spreadsheet.sheet1  # Ensure this is the correct sheet tab
 
 # -------------------------------------------------------------------
 # AUTO-REFRESH FUNCTIONALITY
@@ -32,9 +31,9 @@ sheet2 = spreadsheet.worksheet("Sheet2")
 st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60 seconds
 
 # -------------------------------------------------------------------
-# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA (Sheet1)
+# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA
 # -------------------------------------------------------------------
-st.title("Submit Data to Sheet1")
+st.title(f"Submit Data to {SPREADSHEET_NAME}")
 
 date = st.date_input("Select Date")
 date_str = date.strftime("%Y-%m-%d")  # Convert date to string
@@ -53,30 +52,18 @@ difference = palatizer_counter - actual_transfer
 # Submit Button
 if st.button("Submit Data"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Prepare data for Sheet1
-    new_row_sheet1 = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
-                      kister_counter, palatizer_counter, actual_transfer, difference, comments]
-    
-    # Prepare data for Sheet2
-    OEE = actual_transfer / 79992  # Calculate OEE
-    new_row_sheet2 = [date_str, actual_transfer, OEE]
-    
+    new_row = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
+               kister_counter, palatizer_counter, actual_transfer, difference, comments]
     try:
-        # Append data to Sheet1
-        sheet1.append_row(new_row_sheet1)
-        # Append corresponding data to Sheet2
-        sheet2.append_row(new_row_sheet2)
-        
-        st.success("✅ Data submitted successfully! (Sheet1 and Sheet2 updated)")
-    
+        new_sheet.append_row(new_row)
+        st.success(f"✅ Data submitted successfully to {SPREADSHEET_NAME}!")
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
 
 # -------------------------------------------------------------------
-# DISPLAY LIVE DATA FROM BOTH SHEETS
+# DISPLAY LIVE DATA FROM GOOGLE SHEETS
 # -------------------------------------------------------------------
-st.subheader("Live Data from Sheet1")
+st.subheader(f"Live Data from {SPREADSHEET_NAME}")
 
 @st.cache_data(ttl=30)
 def load_data(sheet):
@@ -92,13 +79,8 @@ def load_data(sheet):
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame()
 
-df_sheet1 = load_data(sheet1)
-st.dataframe(df_sheet1)
-
-st.subheader("Live Data from Sheet2")
-
-df_sheet2 = load_data(sheet2)
-st.dataframe(df_sheet2)
+df = load_data(new_sheet)
+st.dataframe(df)
 
 # -------------------------------------------------------------------
 # MANUAL REFRESH BUTTON (OPTIONAL)
