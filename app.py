@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "New Sheet Name"  # Replace with the correct new file name
+SPREADSHEET_NAME = "Your New Sheet Name"  # Replace with the correct new file name
 
 # Define authentication scopes (including write permissions)
 scope = [
@@ -37,23 +37,17 @@ st.title(f"Submit Data to {SPREADSHEET_NAME}")
 
 date = st.date_input("Select Date")
 date_str = date.strftime("%Y-%m-%d")  # Convert date to string
-blowing_counter = st.number_input("Blowing Counter", min_value=0)
-filler_counter = st.number_input("Filler Counter", min_value=0)
-labeller_counter = st.number_input("Labeller Counter", min_value=0)
-tra_counter = st.number_input("TRA Counter", min_value=0)
-kister_counter = st.number_input("Kister Counter", min_value=0)
-palatizer_counter = st.number_input("Palatizer Counter", min_value=0)
-actual_transfer = st.number_input("Actual Production Transfer", min_value=0)
+machine_counter = st.number_input("Machine Counter", min_value=0)
+actual_production = st.number_input("Actual Production", min_value=0)
 comments = st.text_area("Additional Comments (Optional)")
 
-# Automatically calculate the difference between Palatizer Counter and Actual Transfer
-difference = palatizer_counter - actual_transfer
+# Automatically calculate OEE
+OEE = actual_production / 79992
 
 # Submit Button
 if st.button("Submit Data"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_row = [timestamp, date_str, blowing_counter, filler_counter, labeller_counter, tra_counter,
-               kister_counter, palatizer_counter, actual_transfer, difference, comments]
+    new_row = [timestamp, date_str, machine_counter, actual_production, OEE, comments]
     try:
         new_sheet.append_row(new_row)
         st.success(f"✅ Data submitted successfully to {SPREADSHEET_NAME}!")
@@ -70,10 +64,8 @@ def load_data(sheet):
     try:
         data = sheet.get_all_records()
         if not data:
-            return pd.DataFrame(columns=["Timestamp", "Date", "Blowing Counter", "Filler Counter",
-                                         "Labeller Counter", "TRA Counter", "Kister Counter",
-                                         "Palatizer Counter", "Actual Production Transfer",
-                                         "Difference", "Comments"])
+            return pd.DataFrame(columns=["Timestamp", "Date", "Machine Counter",
+                                         "Actual Production", "OEE", "Comments"])
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
