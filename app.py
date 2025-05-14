@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 # -------------------------------------------------------------------
 # CONFIGURATION
 # -------------------------------------------------------------------
-SPREADSHEET_NAME = "Your New Sheet Name"  # Replace with the correct new file name
+SPREADSHEET_NAME = "AIR COMPRESSOR MONTHLY CHECK LIST"  # Correct file name
 
 # Define authentication scopes (including write permissions)
 scope = [
@@ -23,7 +23,7 @@ client = gspread.authorize(creds)
 
 # Open the spreadsheet
 spreadsheet = client.open(SPREADSHEET_NAME)
-new_sheet = spreadsheet.sheet1  # Ensure this is the correct sheet tab
+sheet = spreadsheet.sheet1  # Ensure this is the correct sheet tab
 
 # -------------------------------------------------------------------
 # AUTO-REFRESH FUNCTIONALITY
@@ -31,25 +31,28 @@ new_sheet = spreadsheet.sheet1  # Ensure this is the correct sheet tab
 st_autorefresh(interval=60000, limit=100, key="datarefresh")  # Refresh every 60 seconds
 
 # -------------------------------------------------------------------
-# STREAMLIT FORM TO ENTER MACHINE COUNTER DATA
+# STREAMLIT FORM TO ENTER COMPRESSOR MAINTENANCE DATA
 # -------------------------------------------------------------------
-st.title(f"Submit Data to {SPREADSHEET_NAME}")
+st.title(f"Submit Air Compressor Maintenance Data")
 
 date = st.date_input("Select Date")
 date_str = date.strftime("%Y-%m-%d")  # Convert date to string
-machine_counter = st.number_input("Machine Counter", min_value=0)
-actual_production = st.number_input("Actual Production", min_value=0)
+task = st.selectbox("Select Task", ["DISMANTLE, CHECK AND CLEAN VALVES",
+                                    "CLEAN AIR GOVERNOR",
+                                    "CHECK ALL BOLTS AND NUTS",
+                                    "CHECK UNLOADED PISTON OPERATION"])
+month = st.selectbox("Select Month", ["JAN", "FEB", "MAR", "APR", "MAY", "JUNE",
+                                      "JULY", "AUG", "SEPT", "OCT", "NOV", "DEC"])
+operator_signature = st.text_input("Operator Signature")
+shift_engineer_signature = st.text_input("Shift Engineer Signature")
 comments = st.text_area("Additional Comments (Optional)")
-
-# Automatically calculate OEE
-OEE = actual_production / 79992
 
 # Submit Button
 if st.button("Submit Data"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_row = [timestamp, date_str, machine_counter, actual_production, OEE, comments]
+    new_row = [timestamp, date_str, task, month, operator_signature, shift_engineer_signature, comments]
     try:
-        new_sheet.append_row(new_row)
+        sheet.append_row(new_row)
         st.success(f"✅ Data submitted successfully to {SPREADSHEET_NAME}!")
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
@@ -57,21 +60,22 @@ if st.button("Submit Data"):
 # -------------------------------------------------------------------
 # DISPLAY LIVE DATA FROM GOOGLE SHEETS
 # -------------------------------------------------------------------
-st.subheader(f"Live Data from {SPREADSHEET_NAME}")
+st.subheader(f"Live Maintenance Data from {SPREADSHEET_NAME}")
 
 @st.cache_data(ttl=30)
 def load_data(sheet):
     try:
         data = sheet.get_all_records()
         if not data:
-            return pd.DataFrame(columns=["Timestamp", "Date", "Machine Counter",
-                                         "Actual Production", "OEE", "Comments"])
+            return pd.DataFrame(columns=["Timestamp", "Date", "Task", "Month",
+                                         "Operator Signature", "Shift Engineer Signature",
+                                         "Comments"])
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame()
 
-df = load_data(new_sheet)
+df = load_data(sheet)
 st.dataframe(df)
 
 # -------------------------------------------------------------------
