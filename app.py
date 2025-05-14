@@ -36,21 +36,26 @@ st.title(f"Update Air Compressor Checklist")
 
 date = st.date_input("Select Date")
 date_str = date.strftime("%Y-%m-%d")  # Convert date to string
+
+# Select maintenance task
 task = st.selectbox("Select Task", ["DISMANTLE, CHECK AND CLEAN VALVES",
                                     "CLEAN AIR GOVERNOR",
                                     "CHECK ALL BOLTS AND NUTS",
                                     "CHECK UNLOADED PISTON OPERATION"])
+
+# Select month
 month = st.selectbox("Select Month", ["JAN", "FEB", "MAR", "APR", "MAY", "JUNE",
                                       "JULY", "AUG", "SEPT", "OCT", "NOV", "DEC"])
+
 operator_signature = st.text_input("Operator Signature")
 shift_engineer_signature = st.text_input("Shift Engineer Signature")
 
-# Find the row number for the selected task
+# Find the correct row for each maintenance task
 task_rows = {
-    "DISMANTLE, CHECK AND CLEAN VALVES": 2,
-    "CLEAN AIR GOVERNOR": 3,
-    "CHECK ALL BOLTS AND NUTS": 4,
-    "CHECK UNLOADED PISTON OPERATION": 5
+    "DISMANTLE, CHECK AND CLEAN VALVES": 3,
+    "CLEAN AIR GOVERNOR": 4,
+    "CHECK ALL BOLTS AND NUTS": 5,
+    "CHECK UNLOADED PISTON OPERATION": 6
 }
 row_number = task_rows[task]
 
@@ -64,9 +69,9 @@ column_number = month_columns[month]
 # Submit Button
 if st.button("Update Checklist"):
     try:
-        # Update the checklist in Google Sheets
+        # Update the checklist in Google Sheets for the correct task and month
         sheet.update_cell(row_number, column_number, f"{operator_signature} | {shift_engineer_signature}")
-        st.success(f"✅ Maintenance task updated for {month}!")
+        st.success(f"✅ Maintenance checklist updated for {task} in {month}!")
     except Exception as e:
         st.error(f"❌ Error updating checklist: {e}")
 
