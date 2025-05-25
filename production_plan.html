@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>A.One Products and Bottlers - Production Plan</title>
+  <style>
+    body { font-family: Arial; background-color: #f2f2f2; padding: 20px; max-width: 600px; margin: auto; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    h2, h3 { text-align: center; }
+    label { margin-top: 10px; display: block; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 5px; }
+    button { background-color: #28a745; color: white; border: none; margin-top: 15px; cursor: pointer; }
+    .result { background-color: #fff; padding: 15px; margin-top: 20px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>A.One Products and Bottlers</h2>
+  <h3>Production Plan</h3>
+
+  <label>Select Date:</label>
+  <input type="date" id="prodDate">
+
+  <label>Select Brand:</label>
+  <select id="brand">
+    <option value="Mo Xtra">Mo Xtra</option>
+    <option value="Mo Malto">Mo Malto</option>
+    <option value="Mo Kola Cola">Mo Kola Cola</option>
+    <option value="Pianaple">Pianaple</option>
+    <option value="Mo Passion">Mo Passion</option>
+    <option value="Mo Chungua">Mo Chungua</option>
+  </select>
+
+  <label>Quantity in Cases:</label>
+  <input type="number" id="cases" placeholder="Enter quantity in cases">
+
+  <button onclick="calculate()">Generate Production Plan</button>
+
+  <div class="result" id="output"></div>
+
+  <script>
+    function calculate() {
+      let date = document.getElementById('prodDate').value;
+      let brand = document.getElementById('brand').value;
+      let cases = parseInt(document.getElementById('cases').value) || 0;
+      let bottles = cases * 12;
+      let preforms = bottles;
+      let caps = bottles;
+      let labels = bottles;
+
+      let output = `
+        <h3>Production Summary</h3>
+        <p><strong>Date:</strong> ${date}</p>
+        <p><strong>Brand:</strong> ${brand}</p>
+        <p><strong>Quantity:</strong> ${cases} cases (${bottles} bottles)</p>
+        <h4>Required Raw Materials:</h4>
+        <ul>
+          <li>Preforms: ${preforms}</li>
+          <li>Caps: ${caps}</li>
+          <li>Labels: ${labels}</li>
+        </ul>
+      `;
+
+      // Save to localStorage
+      localStorage.setItem("lastPlan", output);
+      document.getElementById('output').innerHTML = output;
+    }
+
+    window.onload = function() {
+      let last = localStorage.getItem("lastPlan");
+      if (last) {
+        document.getElementById('output').innerHTML = "<h4>Last Saved Plan:</h4>" + last;
+      }
+    }
+  </script>
+</body>
+</html>
